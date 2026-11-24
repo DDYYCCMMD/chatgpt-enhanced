@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Enhanced",
-  "version": "0.1.0",
-  "description": "Modular enhancements for ChatGPT. V0.1 provides local feature settings.",
+  "version": "0.2.0",
+  "description": "Customize ChatGPT Projects with persistent sidebar color highlights.",
   "minimum_chrome_version": "111",
   "permissions": ["storage"],
   "action": {
