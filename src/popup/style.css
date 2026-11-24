@@ -20,3 +20,7 @@ input:focus-visible { outline: 2px solid #267253; outline-offset: 4px; }
 .note { font-size: 12px; line-height: 1.6; color: #56665f; }
 #status { min-height: 32px; font-size: 12px; line-height: 1.4; color: #285f48; }
 footer { border-top: 1px solid #dbe5df; padding-top: 14px; font-size: 10px; color: #63736d; }
+#check-page { padding: 8px 12px; border: 1px solid #39715d; border-radius: 7px; background: white; color: #285f48; cursor: pointer; }
+#check-page:focus-visible { outline: 2px solid #267253; outline-offset: 2px; }
+#check-page:disabled { opacity: .6; cursor: wait; }
+#page-status { white-space: pre-line; font-size: 11px; line-height: 1.6; color: #56665f; }

@@ -9,7 +9,8 @@ const fixture = readFileSync(new URL('./fixtures/sidebar.html', import.meta.url)
 
 test('project URLs normalize stable IDs, independently of slugs, queries, and renaming', () => {
   for (const url of [`/g/${id}-name/project`, `/g/${id}-renamed/project/?x=1#top`,
-    `https://chatgpt.com/g/${id}/project`, `/g/${id}-%E9%A1%B9%E7%9B%AE/project`]) {
+    `https://chatgpt.com/g/${id}/project`, `/g/${id}-%E9%A1%B9%E7%9B%AE/project`,
+    `/g/${id}-name`, `/g/${id}`, `/projects/${id}`, `/project/${id}`]) {
     assert.equal(projectIdFromUrl(url), id);
   }
   assert.equal(projectIdFromUrl(`/g/${id.toUpperCase()}-name/project`), id);
@@ -19,8 +20,8 @@ test('project URLs normalize stable IDs, independently of slugs, queries, and re
 
 test('conversation, custom GPT, external, ambiguous, and malformed routes are rejected', () => {
   for (const url of ['/c/chat', `/g/${id}/c/chat`, `/g/${id}-name/c/chat`,
-    '/g/g-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-name/project', `/g/${id}-name`,
-    `/projects/${id}`, `/g/g-p-abc-name/project`, `https://example.com/g/${id}/project`,
+    '/g/g-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-name/project', `/g/${id}-name/c/unknown`,
+    `/projects/unknown`, `/g/g-p-abc-name/project`, `https://example.com/g/${id}/project`,
     `https://chatgpt.com.evil.test/g/${id}/project`, `http://chatgpt.com/g/${id}/project`,
     `https://user:pass@chatgpt.com/g/${id}/project`, 'javascript:alert(1)', 'http://[']) {
     assert.equal(projectIdFromUrl(url), null, url);
