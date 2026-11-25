@@ -7,12 +7,13 @@ import { createQuestionIndex } from '../src/features/chat-navigation/question-in
 import { createQuestionDiscovery } from '../src/features/chat-navigation/discovery.ts';
 import type { Question } from '../src/features/chat-navigation/types.ts';
 import { navigationDom } from './helpers/navigation-dom.ts';
+import { createMessageJumper, moveConversation } from '../src/features/chat-navigation/scroll.ts';
 
-function setup(t: TestContext, limit = 2000, maxSteps = 40) {
+function setup(t: TestContext, limit = 2000, maxSteps = 40, timing: { stabilityMs?: number; boundaryMs?: number; orderGuide?: boolean } = {}) {
   const s = navigationDom();
   const root = s.document.getElementById('thread')!;
   const scope = { root, main: s.document.querySelector('main')! };
-  const model = Array.from({ length: 5 }, (_, i) => ({ id: `m${i}`, top: 100 + i * 600 }));
+  const model: {id: string; top: number; text: string; messageId?: string}[] = Array.from({ length: 5 }, (_, i) => ({ id: `m${i}`, top: 100 + i * 600, text: 'Duplicate question' }));
   const index = createQuestionIndex(s.window, limit);
   const discovery = createQuestionDiscovery();
   let mounted: Question[] = [];
@@ -24,11 +25,13 @@ function setup(t: TestContext, limit = 2000, maxSteps = 40) {
     root.replaceChildren();
     for (const item of model) {
       if (item.top < s.scrollArea.scrollTop - 80 || item.top > s.scrollArea.scrollTop + 780) continue;
-      const turn = s.document.createElement('div'); turn.dataset.turnKey = item.id;
-      const message = s.document.createElement('div'); message.dataset.userMessageBubble = ''; message.textContent = 'Duplicate question';
+      const turn = s.document.createElement('div'); turn.dataset.turnKey = item.id; turn.dataset.virtualizedTurn = '';
+      const message = s.document.createElement('div'); message.dataset.userMessageBubble = ''; message.textContent = item.text;
+      if (item.messageId) message.dataset.messageId = item.messageId;
       turn.append(message); root.append(turn);
       turn.getBoundingClientRect = () => ({ top: 72 + item.top - s.scrollArea.scrollTop, bottom: 172 + item.top - s.scrollArea.scrollTop,
         left: 650, right: 1418, width: 768, height: 100, x: 650, y: 72 + item.top - s.scrollArea.scrollTop, toJSON: () => ({}) });
+      message.getBoundingClientRect = turn.getBoundingClientRect;
       const assistant = s.document.createElement('div'); assistant.dataset.messageAuthorRole = 'assistant';
       assistant.textContent = 'PRIVATE ASSISTANT'; root.append(assistant);
       Object.defineProperty(assistant.firstChild!, 'nodeValue', { get: () => assert.fail('Assistant content was read') });
@@ -40,9 +43,9 @@ function setup(t: TestContext, limit = 2000, maxSteps = 40) {
   }) as typeof s.scrollArea.scrollTo;
   s.scrollArea.scrollTop = 1700; render(); refresh();
   const history = createHistoryNavigator(s.window, root, {
-    valid: () => live, mounted: () => mounted, refresh, entry: (key) => index.get(key), count: () => index.size,
+    valid: () => live, mounted: () => mounted, refresh, entry: (key) => index.get(key), entries: () => timing.orderGuide === false ? [] : index.merge([]), count: () => index.size,
     full: () => index.full, resolved: (question) => { assert(question.message.isConnected); resolved.push(question.key); return true; },
-    state: (state) => states.push(state), settleMs: 1, maxSteps, maxDurationMs: 1000,
+    state: (state) => states.push(state), settleMs: 1, stabilityMs: 12, boundaryMs: 8, maxSteps, maxDurationMs: 1000, ...timing,
   });
   t.after(() => { history.dispose(); index.clear(); s.dom.window.close(); });
   return { ...s, root, model, index, history, states, resolved, moves, render, refresh, invalidate: () => { live = false; } };
@@ -64,6 +67,19 @@ test('manual scan discovers virtualized history, keeps summaries without detache
   assert.equal(s.moves[0], 0);
 });
 
+test('fast scan waits for delayed virtualized mounts before moving on', async (t) => {
+  const s = setup(t);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    s.scrollArea.scrollTop = options.top ?? 0; s.moves.push(s.scrollArea.scrollTop);
+    clearTimeout(timer); timer = setTimeout(s.render, 3);
+  }) as typeof s.scrollArea.scrollTo;
+  t.after(() => clearTimeout(timer));
+  await s.history.scan();
+  assert.equal(s.index.size, 5);
+  assert.equal(s.scrollArea.scrollTop, 1700);
+});
+
 test('cached navigation waits for an exact stable identity; missing targets restore instead of selecting another turn', async (t) => {
   const s = setup(t); await s.history.scan();
   const before = s.moves.length;
@@ -75,7 +91,7 @@ test('cached navigation waits for an exact stable identity; missing targets rest
   await s.history.seek('message:turn-key:m0');
   assert.deepEqual(s.resolved, ['message:turn-key:m0']);
   assert.equal(s.scrollArea.scrollTop, 1700);
-  assert.match(s.states.at(-1)!.text, /尚未重新渲染/);
+  assert.match(s.states.at(-1)!.text, /未找到可验证/);
 });
 
 test('stop restores the original position, while wheel takeover and disposal prevent further automatic scrolling', async (t) => {
@@ -126,7 +142,7 @@ test('reading anchor restoration accounts for older turns prepended during a sca
     if (options.top === 0 && !prepended) {
       prepended = true;
       s.model.forEach((item) => { item.top += 400; });
-      s.model.unshift({id: 'older', top: 100});
+      s.model.unshift({id: 'older', top: 100, text: 'Older question'});
     }
     move(options);
   }) as typeof s.scrollArea.scrollTo;
@@ -134,4 +150,173 @@ test('reading anchor restoration accounts for older turns prepended during a sca
   assert.equal(s.scrollArea.scrollTop, 2100); // Same user turn and viewport offset, after the prepend.
   assert.equal(s.index.merge([])[0]!.key, 'message:turn-key:older');
   assert.match(s.states.at(-1)!.text, /已恢复阅读位置/);
+});
+
+test('reused turn keys with different content cannot resolve a cached click to the wrong question', async (t) => {
+  const s = setup(t); await s.history.scan();
+  s.model[0]!.text = 'Different question occupying the same virtual slot';
+  await s.history.seek('message:turn-key:m0');
+  assert.deepEqual(s.resolved, []);
+  assert.equal(s.scrollArea.scrollTop, 1700);
+  assert.match(s.states.at(-1)!.text, /预览已变化/);
+});
+
+test('turn-key cache entries still resolve after remount promotes the same message to a message ID', async (t) => {
+  const s = setup(t); await s.history.scan();
+  s.model[0]!.messageId = 'real-message-id';
+  await s.history.seek('message:turn-key:m0');
+  assert.deepEqual(s.resolved, ['message:id:real-message-id']);
+  assert.equal(s.index.size, 5);
+  assert.equal(s.index.get('message:turn-key:m0')!.key, 'message:id:real-message-id');
+  assert.match(s.states.at(-1)!.text, /已定位/);
+});
+
+test('stale pixel offsets fall back to overlapping traversal and an exact identity', async (t) => {
+  const s = setup(t); await s.history.scan();
+  for (const entry of s.index.merge([])) entry.position *= .05;
+  await s.history.seek('message:turn-key:m4');
+  assert.deepEqual(s.resolved, ['message:turn-key:m4']);
+  assert.match(s.states.at(-1)!.text, /已定位/);
+  assert(s.states.some((state) => state.text.includes('正在加载并定位原消息')));
+});
+
+test('timeline scroll intent releases follow-bottom without cancelling its own navigation', async (t) => {
+  const s = setup(t); await s.history.scan();
+  s.scrollArea.setAttribute('data-app-action-timeline-scroll', '');
+  let intent = false; let gestures = 0;
+  s.scrollArea.addEventListener('wheel', () => { intent = true; gestures++; });
+  const move = s.scrollArea.scrollTo;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    move(options);
+    if (!intent) { s.scrollArea.scrollTop = 1700; s.render(); }
+  }) as typeof s.scrollArea.scrollTo;
+  await s.history.seek('message:turn-key:m0');
+  assert(gestures > 0);
+  assert.deepEqual(s.resolved, ['message:turn-key:m0']);
+  assert.equal(s.scrollArea.scrollTop, 84);
+  assert.match(s.states.at(-1)!.text, /已定位历史问题/);
+});
+
+test('an already-zero rebased timeline still receives upward intent to load earlier history', (t) => {
+  const s = setup(t);
+  s.scrollArea.setAttribute('data-app-action-timeline-scroll', '');
+  s.scrollArea.scrollTop = 0;
+  const deltas: number[] = [];
+  s.scrollArea.addEventListener('wheel', (event) => deltas.push((event as WheelEvent).deltaY));
+  moveConversation(s.window, s.scrollArea, 0);
+  moveConversation(s.window, s.scrollArea, 0);
+  assert.deepEqual(deltas, [-80, -80]);
+  assert.equal(s.scrollArea.scrollTop, 0);
+});
+
+test('native element anchoring uses the user bubble rather than the outer virtual turn and retains header clearance', (t) => {
+  const s = navigationDom(); t.after(() => s.dom.window.close());
+  const root = s.document.getElementById('thread')!;
+  const question = createQuestionDiscovery().collect({ root, main: s.document.querySelector('main')! })
+    .find((question) => question.message.id === 'user-2')!;
+  question.message.getBoundingClientRect = () => ({ top: 600 - s.scrollArea.scrollTop, bottom: 700 - s.scrollArea.scrollTop,
+    left: 1000, right: 1400, width: 400, height: 100, x: 1000, y: 600 - s.scrollArea.scrollTop, toJSON: () => ({}) });
+  let nativeAnchors = 0;
+  question.message.scrollIntoView = (options) => {
+    assert.deepEqual(options, { behavior: 'instant', block: 'start', inline: 'nearest' });
+    nativeAnchors++; s.scrollArea.scrollTop = 528;
+  };
+  const jumper = createMessageJumper(s.window, root, () => 56);
+  assert(jumper.jump(question));
+  assert.equal(nativeAnchors, 1);
+  assert.equal(s.scrollArea.scrollTop, 512);
+});
+
+test('a requested message mounting during top loading is anchored before boundary settling can lose it', async (t) => {
+  const s = setup(t, 2000, 40, { boundaryMs: 50, orderGuide: false }); await s.history.scan();
+  s.index.get('message:turn-key:m0')!.position = 2500;
+  const move = s.scrollArea.scrollTo;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let scheduled = false;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    move(options);
+    if (options.top === 0 && !scheduled) {
+      scheduled = true;
+      timer = setTimeout(() => {
+        if (!s.resolved.includes('message:turn-key:m0')) {
+          s.model.splice(0, 1); s.render();
+        }
+      }, 8);
+    }
+  }) as typeof s.scrollArea.scrollTo;
+  t.after(() => clearTimeout(timer));
+  await s.history.seek('message:turn-key:m0');
+  assert.deepEqual(s.resolved, ['message:turn-key:m0']);
+  assert.equal(s.scrollArea.scrollTop, 84);
+});
+
+test('a later prepend is realigned by message identity before declaring the destination stable', async (t) => {
+  const s = setup(t, 2000, 40, { stabilityMs: 50 }); await s.history.scan();
+  const move = s.scrollArea.scrollTo;
+  let shifted = false; let timer: ReturnType<typeof setTimeout> | undefined;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    move(options);
+    if (!shifted) {
+      shifted = true;
+      timer = setTimeout(() => { s.model.forEach((item) => { item.top += 350; }); s.render(); }, 10);
+    }
+  }) as typeof s.scrollArea.scrollTo;
+  t.after(() => clearTimeout(timer));
+  await s.history.seek('message:turn-key:m0');
+  assert.equal(s.scrollArea.scrollTop, 434);
+  assert.deepEqual(s.resolved, ['message:turn-key:m0']);
+  assert.match(s.states.at(-1)!.text, /已定位历史问题/);
+});
+
+test('rebased cached pixels never reorder an already established chronological index', async (t) => {
+  const s = setup(t); await s.history.scan();
+  const keys = s.index.merge([]).map((entry) => entry.key);
+  for (const [i, entry] of s.index.merge([]).entries()) entry.position = (5 - i) * 10;
+  s.refresh();
+  assert.deepEqual(s.index.merge([]).map((entry) => entry.key), keys);
+});
+
+test('a late backup read restores chronology around an already mounted tail without replacing live previews', async (t) => {
+  const s = setup(t); await s.history.scan();
+  const saved = s.index.merge([]).map((entry) => ({ ...entry }));
+  s.index.clear();
+  s.scrollArea.scrollTop = 2500; s.render(); s.refresh();
+  const tail = s.index.merge([])[0]!;
+  tail.preview = 'Current live preview';
+  s.index.restore(saved);
+  assert.deepEqual(s.index.merge([]).map((entry) => entry.key), saved.map((entry) => entry.key));
+  assert.equal(s.index.get(tail.key)!.preview, 'Current live preview');
+});
+
+test('a remount taking longer than the former ten-poll limit can finish without bouncing back', async (t) => {
+  const s = setup(t); await s.history.scan();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    s.scrollArea.scrollTop = options.top ?? 0; s.moves.push(s.scrollArea.scrollTop);
+    clearTimeout(timer); timer = setTimeout(s.render, 24);
+  }) as typeof s.scrollArea.scrollTo;
+  t.after(() => clearTimeout(timer));
+  await s.history.seek('message:turn-key:m0');
+  assert.deepEqual(s.resolved, ['message:turn-key:m0']);
+  assert.match(s.states.at(-1)!.text, /已定位/);
+});
+
+test('a surviving keyed placeholder supplies live geometry instead of stale saved pixels', async (t) => {
+  const s = setup(t); await s.history.scan();
+  s.model[0]!.top = 2100;
+  const placeholder = s.document.createElement('div'); placeholder.dataset.turnKey = 'm0'; s.root.append(placeholder);
+  placeholder.getBoundingClientRect = () => ({top:72+2100-s.scrollArea.scrollTop,bottom:172+2100-s.scrollArea.scrollTop,
+    left:650,right:1418,width:768,height:100,x:650,y:72+2100-s.scrollArea.scrollTop,toJSON:()=>({})});
+  const before = s.moves.length;
+  await s.history.seek('message:turn-key:m0');
+  assert.equal(s.moves[before], 2084);
+  assert.deepEqual(s.resolved, ['message:turn-key:m0']);
+});
+
+test('two conflicting message IDs cannot be merged by a shared turn alias or duplicate preview', async (t) => {
+  const s = setup(t); s.model[0]!.messageId = 'original-id'; await s.history.scan();
+  s.model[0]!.messageId = 'different-id';
+  await s.history.seek('message:id:original-id');
+  assert.deepEqual(s.resolved, []);
+  assert.match(s.states.at(-1)!.text, /定位失败/);
 });

@@ -2,6 +2,7 @@ import './style.css';
 import { FEATURE_IDS, FEATURE_LABELS } from '../shared/settings.ts';
 import { observeSettings, setFeatureEnabled } from '../storage/settings.ts';
 import { checkCurrentPage } from './page-status.ts';
+import { NAVIGATION_BACKUP_SETTING, getNavigationBackupEnabled, setNavigationBackupEnabled, clearNavigationBackups } from '../storage/navigation-backup.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -55,3 +56,26 @@ async function updatePageStatus(): Promise<void> {
 }
 checkButton.addEventListener('click', () => { void updatePageStatus(); });
 void updatePageStatus();
+
+const backupToggle = element<HTMLInputElement>('navigationBackup');
+const backupFieldset = element<HTMLFieldSetElement>('history-backup');
+const backupStatus = element('backup-status');
+void getNavigationBackupEnabled().then((enabled) => { backupToggle.checked = enabled; backupFieldset.disabled = false; })
+  .catch(() => { backupStatus.textContent = '无法读取备份设置，请重新打开弹窗。'; });
+const backupListener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+  if (area === 'local' && changes[NAVIGATION_BACKUP_SETTING]) backupToggle.checked = changes[NAVIGATION_BACKUP_SETTING].newValue === true;
+};
+chrome.storage.onChanged.addListener(backupListener);
+window.addEventListener('pagehide', () => chrome.storage.onChanged.removeListener(backupListener), { once: true });
+backupToggle.addEventListener('change', () => {
+  const enabled = backupToggle.checked; backupFieldset.disabled = true;
+  void setNavigationBackupEnabled(enabled).then(() => {
+    backupStatus.textContent = enabled ? '已开启本地备份。只保存问题目录，不发送到网络。' : '已停止备份读写，已有备份可用下方按钮清除。';
+  }).catch(() => { backupToggle.checked = !enabled; backupStatus.textContent = '设置保存失败，请重试。'; })
+    .finally(() => { backupFieldset.disabled = false; });
+});
+element<HTMLButtonElement>('clear-navigation-backup').addEventListener('click', () => {
+  backupFieldset.disabled = true;
+  void clearNavigationBackups().then(() => { backupToggle.checked = false; backupStatus.textContent = '已关闭备份并清除所有本地问题目录，项目和聊天颜色不受影响。'; })
+    .catch(() => { backupStatus.textContent = '清除未完成，请重试。'; }).finally(() => { backupFieldset.disabled = false; });
+});

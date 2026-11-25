@@ -47,12 +47,42 @@ export function messageStamp(message: HTMLElement, root: HTMLElement): string {
   const turn = message.closest<HTMLElement>(TURN_SELECTOR);
   const id = message.getAttribute('data-message-id');
   if (id) return `id:${id}`;
+  const metadata = message.closest('[data-chatgpt-search-message-ids]');
+  if (metadata && root.contains(metadata)) {
+    const raw = metadata.getAttribute('data-chatgpt-search-message-ids') ?? '';
+    let ids: unknown = raw;
+    if (raw.length < 4096) { try { ids = JSON.parse(raw); } catch { /* Plain IDs are also supported. */ } }
+    const candidate = Array.isArray(ids) && ids.length === 1 ? ids[0] : ids;
+    if (typeof candidate === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(candidate)) return `id:${candidate.toLowerCase()}`;
+  }
   if (turn && root.contains(turn)) {
     if (turn.hasAttribute('data-turn-id')) return `turn:${turn.getAttribute('data-turn-id')}`;
     if (turn.getAttribute('data-turn-key')) return `turn-key:${turn.getAttribute('data-turn-key')}`;
     if (turn.hasAttribute('data-testid')) return `test:${turn.getAttribute('data-testid')}`;
   }
   return '';
+}
+
+export function messageIdentityKeys(message: HTMLElement, root: HTMLElement): string[] {
+  const keys = new Set<string>();
+  const stamp = messageStamp(message, root); if (stamp) keys.add(`message:${stamp}`);
+  const turn = message.closest<HTMLElement>(TURN_SELECTOR);
+  if (turn && root.contains(turn)) {
+    for (const [attribute, prefix] of [['data-turn-id', 'turn'], ['data-turn-key', 'turn-key']] as const) {
+      const value = turn.getAttribute(attribute); if (value) keys.add(`message:${prefix}:${value}`);
+    }
+  }
+  return [...keys];
+}
+
+// Identity plus a content snapshot check: a recycled slot must not become another question.
+export function isCurrentQuestion(question: Question, root: HTMLElement): boolean {
+  if (!root.contains(question.message) || !root.contains(question.target) || !question.target.contains(question.message)
+    || !isRendered(question.message, root) || !isUserMessage(question.message, root)) return false;
+  const turn = question.message.closest<HTMLElement>(TURN_SELECTOR);
+  if ((turn && root.contains(turn) ? turn : question.message) !== question.target) return false;
+  if (question.key.startsWith('message:') && question.key !== `message:${messageStamp(question.message, root)}`) return false;
+  return questionPreview(question.message).searchText === question.searchText;
 }
 
 export function isUserMessage(message: HTMLElement, root: HTMLElement): boolean {
@@ -87,7 +117,7 @@ export function createQuestionDiscovery() {
       seen.add(key);
       const turn = message.closest<HTMLElement>(TURN_SELECTOR);
       const target = turn && scope.root.contains(turn) ? turn : message;
-      questions.push({ key, message, target, order: questions.length + 1, ...questionPreview(message) });
+      questions.push({ key, identityKeys: messageIdentityKeys(message, scope.root), message, target, order: questions.length + 1, ...questionPreview(message) });
     }
     return questions;
   }

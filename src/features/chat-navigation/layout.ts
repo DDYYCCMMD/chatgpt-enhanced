@@ -2,6 +2,7 @@ import type { ConversationScope, Question } from './types.ts';
 import type { NavigationHiddenReason } from '../../shared/navigation-status.ts';
 
 interface Box { left: number; right: number; top: number; bottom: number; width: number }
+export interface ColumnSnapshot extends Box { viewportWidth: number }
 export interface PanelLayout { visible: boolean; left: number; top: number; width: number; height: number; reason: NavigationHiddenReason; gutter: number }
 export interface LayoutInput {
   viewportWidth: number; viewportHeight: number; main: Box; column: Box;
@@ -44,12 +45,21 @@ export function headerBottom(scope: ConversationScope, window: Window): number {
   return bottom;
 }
 
-export function measureLayout(scope: ConversationScope, questions: readonly Question[], collapsed: boolean, window: Window): PanelLayout {
+export function measureLayout(scope: ConversationScope, questions: readonly Question[], collapsed: boolean, window: Window,
+  fallback: ColumnSnapshot | null = null, remember?: (box: ColumnSnapshot) => void): PanelLayout {
   const hidden: PanelLayout = { visible: false, left: 0, top: 0, width: 0, height: 0, reason: 'unknown-column', gutter: 0 };
-  if (!questions.length || !scope.root.isConnected) return hidden;
-  const column = contentColumn(scope, questions[0]!);
-  const columnBox = column.getBoundingClientRect();
-  if (columnBox.width <= 0) return hidden;
+  if (window.innerWidth < 960) return { ...hidden, reason: 'narrow' };
+  if (!scope.root.isConnected) return hidden;
+  const candidates = [...questions].sort((a, b) => Math.abs(a.message.getBoundingClientRect().top) - Math.abs(b.message.getBoundingClientRect().top));
+  let columnBox: Box | undefined;
+  for (const question of candidates.slice(0, 8)) {
+    const box = contentColumn(scope, question).getBoundingClientRect();
+    if (box.width > 0 && box.width < scope.main.getBoundingClientRect().width - 32) { columnBox = box; break; }
+  }
+  if (columnBox) remember?.({ left: columnBox.left, right: columnBox.right, top: columnBox.top,
+    bottom: columnBox.bottom, width: columnBox.width, viewportWidth: window.innerWidth });
+  else if (fallback?.viewportWidth === window.innerWidth) columnBox = fallback;
+  if (!columnBox) return hidden;
   let sidebarRight = 0;
   for (const sidebar of scope.main.ownerDocument.querySelectorAll<HTMLElement>('aside, nav, [data-sidebar], #stage-sidebar, #stage-slideover-sidebar')) {
     const box = sidebar.getBoundingClientRect();

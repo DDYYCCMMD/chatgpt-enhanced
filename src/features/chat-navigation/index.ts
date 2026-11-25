@@ -1,6 +1,6 @@
 import type { Feature } from '../../shared/feature.ts';
 import type { ConversationScope, Question } from './types.ts';
-import { conversationId, createQuestionDiscovery, findConversation, isRendered, isUserMessage, messageStamp, userRelevantMutation } from './discovery.ts';
+import { conversationId, createQuestionDiscovery, findConversation, isRendered, isUserMessage, isCurrentQuestion, messageStamp, userRelevantMutation } from './discovery.ts';
 import { contentColumn, headerBottom, measureLayout } from './layout.ts';
 import { createQuestionPanel } from './panel.ts';
 import { createMessageJumper, scrollRoot } from './scroll.ts';
@@ -9,6 +9,9 @@ import { navigationStatuses } from './status.ts';
 import type { NavigationStatus } from '../../shared/navigation-status.ts';
 import { createQuestionIndex } from './question-index.ts';
 import { createHistoryNavigator } from './history.ts';
+import { createNavigationBackup } from '../../storage/navigation-backup.ts';
+import type { ColumnSnapshot } from './layout.ts';
+import { sameQuestionSnapshot } from './identity.ts';
 
 interface Session {
   scope: ConversationScope;
@@ -26,6 +29,7 @@ export function enableChatNavigation(document: Document, window: Window): () => 
   let session: Session | null = null;
   let discovery = createQuestionDiscovery();
   const index = createQuestionIndex(window);
+  let columnSnapshot: ColumnSnapshot | null = null;
   let blocked = new WeakMap<HTMLElement, string>();
   let seen = new WeakMap<HTMLElement, string>();
   let refreshTimer: number | undefined;
@@ -43,21 +47,32 @@ export function enableChatNavigation(document: Document, window: Window): () => 
   });
   const panel = createQuestionPanel(document, (key) => {
     if (syncRoute()) { scheduleRefresh(); return; }
-    const question = session?.questions.find((item) => item.key === key);
+    const requested = index.get(key);
+    const previousQuestion = session?.questions.find((item) => item.key === key);
+    reconcile();
+    const matches = requested ? session?.questions.filter((item) => sameQuestionSnapshot(item, requested)) ?? [] : [];
+    if (!requested || index.get(key)?.tooltip !== requested.tooltip
+      || matches.length > 1 || (previousQuestion && session && !isCurrentQuestion(previousQuestion, session.scope.root) && matches.length !== 1)) {
+      panel.setHistoryState({ busy: false, text: '该条目已变化，目录已更新，请重新选择。' }); return;
+    }
+    const question = matches[0];
+    if (question && requested.searchText !== requested.tooltip && requested.searchText !== question.searchText) return;
     const currentScope = route ? findConversation(document, route) : null;
     if (!session || session.history.busy || currentScope?.root !== session.scope.root) return;
-    if (!question) { void session.history.seek(key); return; }
-    if (!isRendered(question.message, session.scope.main)
-      || !isUserMessage(question.message, session.scope.root)
-      || (question.key.startsWith('message:') && question.key !== `message:${messageStamp(question.message, session.scope.root)}`)) {
+    if (question && !isCurrentQuestion(question, session.scope.root)) {
       scheduleRefresh(); return;
     }
-    if (question && session?.jumper.jump(question)) session.tracker.select(key);
-    else scheduleRefresh();
+    // Mounted destinations also need verification after the site's scroll reflow.
+    void session.history.seek(key);
   }, () => { panel.setCollapsed(!panel.isCollapsed()); scheduleLayout(); }, () => {
     if (!session) return;
     if (session.history.busy) session.history.cancel(true);
     else void session.history.scan();
+  });
+  const backup = createNavigationBackup(window, {
+    entries: () => index.merge([]),
+    restore: (entries) => { index.restore(entries); panel.setQuestions(index.merge([]), false, session?.questions.length ?? 0); scheduleRefresh(); },
+    error: () => panel.setHistoryState({ busy: false, text: '本地备份读取或保存失败，页面导航仍可使用。' }),
   });
 
   function updateTheme(): void {
@@ -102,12 +117,11 @@ export function enableChatNavigation(document: Document, window: Window): () => 
       if (!active) return;
       if (!session) panel.host.hidden = true;
       else {
-        if (!session.questions.length && index.size) return;
-        const layout = measureLayout(session.scope, session.questions, panel.isCollapsed(), window);
+        const layout = measureLayout(session.scope, session.questions, panel.isCollapsed(), window, columnSnapshot, (box) => { columnSnapshot = box; });
         panel.setLayout(layout);
         diagnostic.viewportWidth = Math.round(window.innerWidth);
         diagnostic.gutter = layout.gutter;
-        if (session.questions.length) {
+        if (index.size) {
           diagnostic.reason = layout.reason;
           diagnostic.phase = layout.visible ? panel.isCollapsed() ? 'collapsed' : 'visible' : 'hidden';
         }
@@ -128,11 +142,14 @@ export function enableChatNavigation(document: Document, window: Window): () => 
     if (next === route) return false;
     blocked = seen;
     seen = new WeakMap();
+    backup.flush();
     disposeSession();
     index.clear();
+    columnSnapshot = null;
     route = next;
     diagnostic.phase = next ? 'waiting-container' : 'waiting-conversation';
     discovery = createQuestionDiscovery();
+    backup.activate(route);
     return true;
   }
 
@@ -157,11 +174,10 @@ export function enableChatNavigation(document: Document, window: Window): () => 
         valid: () => active && route === ownerRoute && conversationId(window.location.pathname) === ownerRoute
           && session?.scope.root === scope.root && findConversation(document, ownerRoute!)?.root === scope.root,
         mounted: () => session?.questions ?? [], refresh: reconcile,
-        entry: (key) => index.get(key), count: () => index.size, full: () => index.full,
+        entry: (key) => index.get(key), entries: () => index.merge([]), count: () => index.size, full: () => index.full,
         headerBottom: () => headerBottom(scope, window),
         resolved: (question) => {
-          if (!session || !isRendered(question.message, scope.main) || !isUserMessage(question.message, scope.root)
-            || (question.key.startsWith('message:') && question.key !== `message:${messageStamp(question.message, scope.root)}`)) return false;
+          if (!session || !isCurrentQuestion(question, scope.root)) return false;
           const jumped = session.jumper.jump(question);
           if (jumped) session.tracker.select(question.key);
           return jumped;
@@ -169,8 +185,9 @@ export function enableChatNavigation(document: Document, window: Window): () => 
         state: (state) => panel.setHistoryState(state),
       }),
     };
+    panel.setQuestions(index.merge([]), false, 0);
     rootObserver.observe(scope.root, { childList: true, subtree: true, characterData: true, attributes: true,
-      attributeFilter: ['data-message-author-role', 'data-user-message-bubble', 'data-message-id', 'data-turn-id', 'data-turn-key', 'data-testid', 'data-conversation-id', 'hidden', 'aria-hidden', 'class', 'style'] });
+      attributeFilter: ['data-message-author-role', 'data-user-message-bubble', 'data-message-id', 'data-chatgpt-search-message-ids', 'data-turn-id', 'data-turn-key', 'data-testid', 'data-conversation-id', 'hidden', 'aria-hidden', 'class', 'style'] });
     // Watch only shallow ancestor child lists for replacement, not the entire document subtree.
     watchAncestors(scope.root);
   }
@@ -190,6 +207,7 @@ export function enableChatNavigation(document: Document, window: Window): () => 
     if (!route) { diagnostic.phase = 'waiting-conversation'; return; }
     const scope = findConversation(document, route);
     if (!scope) { disposeSession(); diagnostic.phase = 'waiting-container'; return; }
+    panel.setFontFamily(window.getComputedStyle(scope.main).fontFamily);
     if (session?.scope.root !== scope.root || session.scope.main !== scope.main) attach(scope);
     const current = session!;
     const next = discovery.collect(scope, blocked);
@@ -214,6 +232,7 @@ export function enableChatNavigation(document: Document, window: Window): () => 
     diagnostic.questions = summaries.length;
     diagnostic.phase = summaries.length ? 'measuring' : 'empty';
     if (changed || summariesChanged) panel.setQuestions(summaries, false, next.length);
+    if (summariesChanged) backup.schedule();
     if (changed) current.tracker.setQuestions(next);
     resizeObserver?.disconnect();
     resizeObserver?.observe(scope.main);
@@ -246,7 +265,7 @@ export function enableChatNavigation(document: Document, window: Window): () => 
     window.removeEventListener('focus', onLocation);
     document.removeEventListener('transitionend', onLayoutTransition);
     systemTheme?.removeEventListener('change', updateTheme);
-    themeObserver.disconnect(); disposeSession(); index.clear(); panel.dispose();
+    themeObserver.disconnect(); backup.dispose(); disposeSession(); index.clear(); panel.dispose();
     blocked = new WeakMap(); seen = new WeakMap(); discovery = createQuestionDiscovery();
     if (navigationStatuses.get(document) === diagnostic) navigationStatuses.delete(document);
   };

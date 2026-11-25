@@ -4,6 +4,7 @@ export interface QuestionSummary {
   tooltip: string;
   searchText: string;
   order: number;
+  identityKeys?: readonly string[];
 }
 
 export interface Question extends QuestionSummary {

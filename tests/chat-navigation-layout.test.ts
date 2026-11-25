@@ -51,3 +51,12 @@ test('jumps are instantaneous even with CSS smooth scrolling, create no animatio
   assert.equal(s.scrolls.length, count);
   jumper.dispose();
 });
+
+test('a message moved out of its recorded turn never jumps to the former turn', (t) => {
+  const s = navigationDom(); t.after(() => s.dom.window.close());
+  const scope = findConversation(s.document, FIRST_CONVERSATION)!;
+  const question = createQuestionDiscovery().collect(scope)[0]!;
+  s.document.getElementById('turn-2')!.append(question.message);
+  assert.equal(createMessageJumper(s.window, scope.root, () => 56).jump(question), false);
+  assert.equal(s.scrolls.length, 0);
+});

@@ -3,7 +3,7 @@ import type { QuestionSummary } from './types.ts';
 import type { HistoryState } from './history.ts';
 
 const CSS = `
-  :host { all: initial; position: fixed; z-index: 1000; font: 13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  :host { all: initial; position: fixed; z-index: 1000; font: 13px/1.5 var(--page-font,ui-sans-serif,system-ui,sans-serif);
     color: #292929; --surface: #f9f9f9; --hover: #ededed; --selected: #e7e7e7; --muted: #858585; --focus: #737373; }
   :host([hidden]) { display: none !important; }
   * { box-sizing: border-box; }
@@ -60,9 +60,12 @@ const CSS = `
   .scan-history:hover { color: inherit; background: var(--selected); }
   .scan-status { font-size: 11px; color: var(--muted); line-height: 17px; padding: 7px 3px 0; overflow-wrap: anywhere; }
   .rail .scan-rail { display: grid; place-items: center; height: 26px; width: 36px; flex: none; border-radius: 6px; color: var(--muted); opacity: 0; }
-  .rail:hover .scan-rail, .rail:focus-within .scan-rail, .scan-rail[data-busy="true"] { opacity: 1; }
+  .rail:hover .scan-rail, .rail:focus-within .scan-rail, .scan-rail[data-busy="true"], .scan-rail[data-error="true"] { opacity: 1; }
   .scan-rail:hover { background: var(--hover); color: inherit; }
   .tick:disabled, .question:disabled { cursor: progress; opacity: .65; }
+  .control-hint { position: absolute; max-width: 240px; width: max-content; padding: 7px 10px;
+    border: 1px solid #8882; border-radius: 8px; color: inherit; background: var(--surface);
+    box-shadow: 0 4px 16px #00000012; font: inherit; font-size: 12px; line-height: 18px; pointer-events: none; }
   [hidden] { display: none !important; }
   :host([data-theme="dark"]) { color: #e3e3e3; --surface: #191919; --hover: #252525; --selected: #303030; --muted: #999; --focus: #aaa; }
   :host([data-theme="dark"]) .tooltip { background: #252525; border-color: #444; box-shadow: 0 10px 28px #0004; }
@@ -90,6 +93,24 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
   host.setAttribute('data-cge-question-navigation', '');
   host.hidden = true;
   const shadow = host.attachShadow({ mode: 'open' });
+  const controlHint = document.createElement('div'); controlHint.className = 'control-hint'; controlHint.id = 'navigation-control-hint';
+  controlHint.setAttribute('role', 'tooltip'); controlHint.hidden = true;
+  let hintTrigger: HTMLButtonElement | null = null;
+  function hideHint(): void { controlHint.hidden = true; hintTrigger?.removeAttribute('aria-describedby'); hintTrigger = null; }
+  function attachHint(button: HTMLButtonElement): void {
+    button.dataset.hint = button.title; button.removeAttribute('title');
+    const show = () => {
+      hideHint(); if (host.hidden) return;
+      const rect = button.getBoundingClientRect(), box = host.getBoundingClientRect();
+      controlHint.textContent = button.dataset.hint ?? button.getAttribute('aria-label') ?? '';
+      controlHint.style.left = `${Math.max(-box.left + 8, Math.min(rect.left - box.left, document.defaultView!.innerWidth - box.left - 248))}px`;
+      controlHint.style.top = `${Math.max(0, rect.bottom - box.top + 6)}px`;
+      controlHint.hidden = false; button.setAttribute('aria-describedby', controlHint.id); hintTrigger = button;
+    };
+    button.addEventListener('pointerenter', show); button.addEventListener('pointerleave', hideHint);
+    button.addEventListener('focus', show); button.addEventListener('blur', hideHint);
+    button.addEventListener('click', hideHint);
+  }
   const style = document.createElement('style'); style.textContent = CSS;
   const panel = document.createElement('section'); panel.className = 'panel'; panel.setAttribute('role', 'navigation'); panel.setAttribute('aria-label', '会话问题导航');
   const header = document.createElement('header');
@@ -151,7 +172,7 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
   tooltip.addEventListener('pointerenter', keepPreview); tooltip.addEventListener('pointerleave', deferHide);
   tooltip.addEventListener('focusin', keepPreview); tooltip.addEventListener('focusout', deferHide);
   previewJump.addEventListener('click', () => { const key = previewKey; hidePreview(); if (key && !busy) onJump(key); });
-  const outside = (event: Event) => { if (!event.composedPath().includes(host)) hidePreview(); };
+  const outside = (event: Event) => { if (!event.composedPath().includes(host)) { hidePreview(); hideHint(); } };
   document.addEventListener('pointerdown', outside);
   function showPreview(button: HTMLButtonElement, question: QuestionSummary): void {
     hidePreview();
@@ -219,11 +240,12 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
   clear.addEventListener('click', () => { input.value = ''; render(); input.focus(); });
   ticks.addEventListener('scroll', hidePreview);
   list.addEventListener('scroll', hidePreview);
-  shadow.addEventListener('keydown', (event) => { if ((event as KeyboardEvent).key === 'Escape') hidePreview(); });
+  shadow.addEventListener('keydown', (event) => { if ((event as KeyboardEvent).key === 'Escape') { hidePreview(); hideHint(); } });
   search.append(icon(document, 'm16 16 4 4M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z'), input, clear);
   footer.append(scan, scanStatus); panel.append(header, search, list, footer);
   rail.append(expand, scanRail, ticks);
-  shadow.append(style, panel, rail, tooltip); document.body.append(host);
+  for (const button of [collapse, expand, clear, scanRail]) attachHint(button);
+  shadow.append(style, panel, rail, tooltip, controlHint); document.body.append(host);
   return {
     host,
     setQuestions(next: readonly QuestionSummary[], resetSearch = false, mounted = next.length): void {
@@ -235,7 +257,9 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
       busy = state.busy; scanLabel.textContent = busy ? '停止并返回原位置' : '扫描历史问题';
       scanStatus.textContent = state.text;
       scanRail.dataset.busy = String(busy);
-      scanRail.title = busy ? '停止并返回原位置' : '扫描历史问题，结束后返回原阅读位置';
+      scanRail.dataset.error = String(!busy && state.text.startsWith('定位失败'));
+      hideHint();
+      scanRail.dataset.hint = busy ? '停止并返回原位置' : state.text.startsWith('定位失败') ? state.text : '扫描历史问题，结束后返回原阅读位置';
       scanRail.setAttribute('aria-label', busy ? '停止并返回原位置' : '扫描历史问题');
       panel.setAttribute('aria-busy', String(busy));
       if (busy) hidePreview();
@@ -254,25 +278,26 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
     },
     setCollapsed(value: boolean): void {
       const restoreFocus = shadow.activeElement === collapse || shadow.activeElement === expand;
-      hidePreview();
+      hidePreview(); hideHint();
       collapsed = value; panel.hidden = value; rail.hidden = !value; host.dataset.mode = value ? 'rail' : 'list';
       collapse.setAttribute('aria-expanded', String(!value)); expand.setAttribute('aria-expanded', String(!value));
       if (restoreFocus) (value ? expand : collapse).focus({ preventScroll: true });
     },
     isCollapsed: () => collapsed,
     setLayout(layout: PanelLayout): void {
-      hidePreview();
+      hidePreview(); hideHint();
       host.hidden = !layout.visible;
       const viewportWidth = document.defaultView!.innerWidth;
       previewWidth = collapsed ? Math.max(0, Math.min(340, viewportWidth - layout.left - 42 - 16)) : layout.width;
       layoutHeight = layout.height;
       expand.disabled = layout.gutter < 200;
-      expand.title = expand.disabled ? '左侧空间不足以展开列表，请收起 ChatGPT 侧边栏或放大窗口' : '展开问题导航';
+      expand.dataset.hint = expand.disabled ? '左侧空间不足以展开列表，请收起 ChatGPT 侧边栏或放大窗口' : '展开问题导航';
       host.style.setProperty('--preview-width', `${previewWidth}px`);
       host.style.left = `${Math.round(layout.left)}px`; host.style.top = `${Math.round(layout.top)}px`;
       host.style.width = `${Math.round(layout.width)}px`; host.style.maxHeight = `${Math.round(layout.height)}px`;
     },
     setTheme(dark: boolean): void { host.dataset.theme = dark ? 'dark' : 'light'; },
-    dispose(): void { hidePreview(); document.removeEventListener('pointerdown', outside); questions = []; input.value = ''; buttons.clear(); tickButtons.clear(); list.replaceChildren(); ticks.replaceChildren(); host.remove(); },
+    setFontFamily(family: string): void { if (family) host.style.setProperty('--page-font', family); },
+    dispose(): void { hidePreview(); hideHint(); document.removeEventListener('pointerdown', outside); questions = []; input.value = ''; buttons.clear(); tickButtons.clear(); list.replaceChildren(); ticks.replaceChildren(); host.remove(); },
   };
 }

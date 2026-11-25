@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { enableChatNavigation } from '../src/features/chat-navigation/index.ts';
 import { chatNavigationStatus } from '../src/features/chat-navigation/status.ts';
+import { NAVIGATION_BACKUP_SETTING } from '../src/storage/navigation-backup.ts';
 import { enableProjectColors } from '../src/features/project-colors/index.ts';
 import { enableChatColors } from '../src/features/chat-colors/index.ts';
 import { createFeatureController } from '../src/shared/feature.ts';
@@ -20,6 +21,55 @@ function setup(t: TestContext, bubbles = false, rail = false) {
   const questions = () => [...shadow().querySelectorAll<HTMLButtonElement>('.question')];
   return { ...context, storage, stop, host, shadow, questions };
 }
+
+test('a recycled bubble whose text changes before debounce cannot jump under its old label', async (t) => {
+  const s = setup(t, true); await settleNavigation();
+  const button = s.questions()[0]!;
+  s.document.getElementById('user-1')!.textContent = 'Changed question with reused turn metadata';
+  button.click();
+  assert.equal(s.scrolls.length, 0);
+  assert.match(s.shadow().querySelector('.scan-status')!.textContent!, /条目已变化/);
+});
+
+test('known geometry keeps the navigation visible when virtualized columns temporarily report zero width', async (t) => {
+  const s = setup(t); await settleNavigation();
+  for (const column of s.document.querySelectorAll<HTMLElement>('.max-w-thread')) {
+    column.getBoundingClientRect = () => ({left:0,right:0,top:0,bottom:0,width:0,height:0,x:0,y:0,toJSON:()=>({})});
+  }
+  s.window.dispatchEvent(new s.dom.window.Event('resize')); await settleNavigation();
+  assert.equal(s.host().hidden, false);
+  assert.equal(s.questions().length, 5);
+});
+
+test('opt-in backups restore earlier questions when a new navigation lifecycle mounts only the last turn', async (t) => {
+  const s = navigationDom(); const storage = mockChromeStorage({ [NAVIGATION_BACKUP_SETTING]: true });
+  const stop = enableChatNavigation(s.document, s.window); await settleNavigation(); stop();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert(Object.keys(storage.values).some((key) => key.startsWith('navigation.backup.v1.')));
+  const last = s.document.getElementById('user-5')!.closest('article')!.cloneNode(true);
+  s.document.getElementById('thread')!.replaceChildren(last);
+  const stopAgain = enableChatNavigation(s.document, s.window); t.after(() => { stopAgain(); s.dom.window.close(); });
+  await settleNavigation();
+  assert.equal(chatNavigationStatus(s.document).questions, 5);
+});
+
+test('navigation uses the page font and a styled scan hint instead of the browser native title', async (t) => {
+  const s = navigationDom();
+  s.document.querySelector<HTMLElement>('main')!.style.fontFamily = 'Arial, sans-serif';
+  const stop = enableChatNavigation(s.document, s.window);
+  t.after(() => { stop(); s.dom.window.close(); });
+  await settleNavigation();
+  const host = s.document.querySelector<HTMLElement>('[data-cge-question-navigation]')!;
+  assert.equal(host.style.getPropertyValue('--page-font'), 'Arial, sans-serif');
+  const scan = host.shadowRoot!.querySelector<HTMLButtonElement>('.scan-rail')!;
+  assert.equal(scan.hasAttribute('title'), false);
+  scan.dispatchEvent(new s.dom.window.Event('pointerenter'));
+  const hint = host.shadowRoot!.querySelector<HTMLElement>('.control-hint')!;
+  assert.equal(hint.hidden, false);
+  assert.match(hint.textContent!, /扫描历史问题/);
+  scan.dispatchEvent(new s.dom.window.Event('pointerleave'));
+  assert.equal(hint.hidden, true);
+});
 
 test('default tick rail previews on hover/focus, dismisses safely and jumps only on click', async (t) => {
   const s = setup(t, false, true); await settleNavigation();
@@ -308,7 +358,7 @@ test('scan controls expose stop/progress and disabling clears the session index 
   assert(s.questions().every((button) => button.disabled));
   assert.match(scan.textContent!, /停止/);
   scan.click();
-  await new Promise((resolve) => setTimeout(resolve, 850));
+  await new Promise((resolve) => setTimeout(resolve, 1550));
   assert.equal(s.scrollArea.scrollTop, 500);
   assert.equal(s.shadow().querySelector('.panel')!.getAttribute('aria-busy'), 'false');
   assert.match(s.shadow().querySelector('.scan-status')!.textContent!, /已停止/);
@@ -366,6 +416,6 @@ test('feature controller keeps real Sidebar Colors independent through navigatio
   controller.apply({ projectColors: false, chatColors: false, chatNavigation: true }); await settleNavigation();
   assert.equal(s.document.querySelectorAll('[data-cge-question-navigation]').length, 1);
   assert.equal(s.document.querySelector('[data-cge-project-color]'), null);
-  assert.equal(storage.listeners.size, 0);
+  assert.equal(storage.listeners.size, 1); // Navigation's independent opt-in backup preference observer.
   controller.dispose();
 });

@@ -5,6 +5,19 @@ import { conversationId, createQuestionDiscovery, findConversation, messageStamp
 import { questionPreview, PREVIEW_LENGTH } from '../src/features/chat-navigation/preview.ts';
 import { FIRST_CONVERSATION, SECOND_CONVERSATION, navigationDom, bubbleNavigationDom } from './helpers/navigation-dom.ts';
 
+test('a single explicit search message UUID takes precedence over a recyclable turn slot', (t) => {
+  const { dom, document } = bubbleNavigationDom(); t.after(() => dom.window.close());
+  const message = document.getElementById('user-1')!;
+  const owner = message.closest('[data-chatgpt-search-message-ids]')!;
+  owner.setAttribute('data-chatgpt-search-message-ids', JSON.stringify([FIRST_CONVERSATION]));
+  const scope = findConversation(document, FIRST_CONVERSATION)!;
+  assert.equal(messageStamp(message, scope.root), `id:${FIRST_CONVERSATION}`);
+  document.getElementById('turn-1')!.dataset.turnKey = 'recycled-slot';
+  assert.equal(messageStamp(message, scope.root), `id:${FIRST_CONVERSATION}`);
+  owner.setAttribute('data-chatgpt-search-message-ids', JSON.stringify([FIRST_CONVERSATION, SECOND_CONVERSATION]));
+  assert.equal(messageStamp(message, scope.root), 'turn-key:recycled-slot');
+});
+
 test('captured bubble structure without legacy author roles or thread IDs identifies only user messages', (t) => {
   const { dom, document } = bubbleNavigationDom(); t.after(() => dom.window.close());
   assert.equal(document.querySelectorAll('[data-message-author-role="user"]').length, 0);
