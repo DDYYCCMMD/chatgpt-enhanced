@@ -10,6 +10,7 @@ import { findSidebars } from '../shared/sidebar-colors/sidebar.ts';
 import { discoverProjects } from '../features/project-colors/detection.ts';
 import { discoverChats } from '../features/chat-colors/detection.ts';
 import { sidebarColorStatus } from '../shared/sidebar-colors/lifecycle.ts';
+import { chatNavigationStatus } from '../features/chat-navigation/status.ts';
 
 const controller = createFeatureController([projectColors, chatColors, chatNavigation]);
 let unsubscribe: (() => void) | undefined;
@@ -27,6 +28,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     projects: new Set(roots.flatMap(discoverProjects).map((row) => row.id)).size,
     chats: new Set(roots.flatMap(discoverChats).map((row) => row.id)).size,
     ...sidebarColorStatus(document),
+    navigation: chatNavigationStatus(document),
   };
   sendResponse(status);
 });

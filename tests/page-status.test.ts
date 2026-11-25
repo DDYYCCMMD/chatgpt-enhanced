@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';
-import { checkCurrentPage, describePageStatus } from '../src/popup/page-status.ts';
+import { checkCurrentPage, describeNavigation, describePageStatus } from '../src/popup/page-status.ts';
 import { isPageStatus, PAGE_STATUS_PROTOCOL, PAGE_STATUS_REQUEST } from '../src/shared/page-status.ts';
 import type { PageStatus } from '../src/shared/page-status.ts';
 import { mockChromeStorage } from './helpers/chrome-storage.ts';
@@ -11,6 +11,7 @@ const baseline: PageStatus = {
   protocol: PAGE_STATUS_PROTOCOL, version: '0.2.1', phase: 'ready',
   settings: { projectColors: false, chatColors: false, chatNavigation: false },
   roots: 2, projects: 1, chats: 2, projectReady: false, chatReady: false, lastContext: 'none',
+  navigation: { phase: 'disabled', questions: 0, reason: 'none', viewportWidth: 0, gutter: 0 },
 };
 
 test('status validates response shape and explains disabled, missing, and unrecognized states', () => {
@@ -20,6 +21,16 @@ test('status validates response shape and explains disabled, missing, and unreco
   assert.match(describePageStatus(baseline, '0.2.1'), /两个颜色开关均关闭/);
   assert.match(describePageStatus({ ...baseline, settings: { ...baseline.settings, chatColors: true }, roots: 0, lastContext: 'unrecognized' }, '0.2.1'), /未发现侧边栏/);
   assert.match(describePageStatus({ ...baseline, lastContext: 'chat' }, '0.2.1'), /已接管聊天菜单/);
+});
+
+test('navigation diagnostics distinguish missing scope, empty extraction and hidden layout without including message text', () => {
+  const navigation = { phase: 'hidden' as const, questions: 5, reason: 'gutter' as const, viewportWidth: 1920, gutter: 28 };
+  assert.match(describeNavigation(navigation), /5 条用户问题/);
+  assert.match(describeNavigation(navigation), /28px 不足以显示导航/);
+  assert.match(describeNavigation({ ...navigation, phase: 'waiting-container' }), /没有识别到当前会话容器/);
+  assert.match(describeNavigation({ ...navigation, phase: 'empty', questions: 0 }), /没有识别到已渲染的用户消息/);
+  assert.match(describeNavigation({ ...navigation, phase: 'visible', reason: 'none' }), /面板已显示/);
+  assert.equal(isPageStatus({ ...baseline, navigation: { ...navigation, questions: -1 } }), false);
 });
 
 test('popup checks only active tab ID and top-frame messaging, and reports no-receiver/old-protocol errors', async () => {

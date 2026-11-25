@@ -1,4 +1,4 @@
-# V0.2.1 architecture
+# V0.3 architecture
 
 ## Existing runtime and settings
 
@@ -6,7 +6,7 @@ The MV3 manifest targets `https://chatgpt.com/*` with a single classic `content.
 
 The existing content entry subscribes to settings and applies them to the feature controller. `pagehide` disposes active features/subscriptions and `pageshow` resumes after back/forward caching. The popup renders the manifest version and uses the existing settings-driven toggle logic. Each feature remains independently enableable through the same synchronous setup/cleanup contract.
 
-Boolean keys are `settings.v1.projectColors`, `settings.v1.chatColors`, and `settings.v1.chatNavigation`. Defaults remain off; old saved settings are unchanged. A missing Chat Colors value defaults to off. Chat Navigation remains a no-op.
+Boolean keys are `settings.v1.projectColors`, `settings.v1.chatColors`, and `settings.v1.chatNavigation`. Defaults remain off; old saved settings are unchanged. A missing Chat Colors value defaults to off. Chat Navigation now implements its existing independent feature contract; stored toggle keys and defaults are unchanged.
 
 ## Diagnosis boundary
 
@@ -17,6 +17,8 @@ Those limitations are reproduced in variant fixtures and addressed in V0.2.1. Th
 ## Page connection diagnosis
 
 The popup's **检查当前页** check queries only the active tab ID and sends a fixed message to the top-frame content script, with a bounded timeout. A same-extension sender check gates the synchronous reply. The response contains only version, booleans, detected-row counts, and a fixed last-context status; no IDs, titles, URLs, or message text leave the content script. There are no external requests or new browser permissions.
+
+Navigation adds a document-scoped diagnostic snapshot: lifecycle phase, identified-question count, hidden-layout reason, viewport width, and gutter width. The popup can distinguish extraction failures from intentional layout hiding without accessing previews. Disabling navigation removes the snapshot. Protocol validation rejects stale content-script replies after an extension reload until the page is refreshed.
 
 The existing settings lifecycle records its load phase. The shared host records whether the latest context event claimed a Project/Chat or remained unrecognized/not-ready/ambiguous. On-demand detection can count rows even if features are off, without adding watchers or changing their enable/disable behavior. The popup distinguishes no receiver/old protocol, disabled features, no detected sidebar/items, intentional native right-click, and unrecognized events. The protocol revision changes with the modifier-trigger behavior to identify stale injected scripts. It never treats a count or connection as proof of successful live rendering.
 
@@ -82,3 +84,61 @@ Reviewed [chatgpt-style commit 69f4ee0](https://github.com/monmon0/chatgpt-style
 Regression tests model a trusted sidebar within a main shell, explicit per-item fallback roots within that shell, exclusion of quoted sidebar markers in actual message subtrees, refusal of an app-wide root containing messages, and URL metadata with conflicting-identity rejection. These source-level checks supplement the user's sanitized capture; they do not verify the live site's event path or loaded extension state.
 
 The final interaction is direct right-click. Experimental Option/Alt and Shift gates were removed following browser shortcut conflicts and user feedback. No primary-click handler or modifier tracking is installed. The page-status protocol was incremented so stale modifier-based scripts can be detected. Regression tests exercise unmodified right-click activation, native-control propagation, unrelated page menus, and unchanged saved colors.
+
+## V0.3 Chat Navigation
+
+V0.3 starts from local `main` commit `34a5b95` (the latest V0.2.1), with a clean initial working tree. No remote V0.1 reset or unrelated rewrite was performed. Navigation has no source dependency on Sidebar Colors; the existing content entry already registers its Feature, so its placeholder is replaced in place.
+
+### Responsibilities
+
+- `chat-navigation/discovery.ts`: active conversation scope, rendered user-message discovery, stable-ID/DOM-reference keys, transition guards, and mutation relevance filtering.
+- `preview.ts`: bounded user-only text extraction, whitespace/code normalization, attachment/blank/editing fallbacks, Unicode preview and tooltip truncation.
+- `panel.ts`: escaped text-only Shadow DOM UI, search/clear, list order, collapse/expand, active state and focus management.
+- `layout.ts`: safe left-gutter geometry, content-column adaptation, header/composer bounds and hide-when-insufficient behavior.
+- `scroll.ts`: native scroll-container selection and explicit instant jumps with header clearance; no destination animation.
+- `active.ts`: IntersectionObserver-based reading selection; a short visual hold during a click jump never initiates another scroll.
+- `index.ts`: route/root lifecycle, observer ownership, reconciliation, layout/theme updates and complete cleanup.
+- `question-index.ts`: bounded per-conversation page-memory summaries, ordering by observed scroll position, and retention without detached message DOM references.
+- `history.ts`: user-initiated native-scroll scanning, cancellation/bounds, reading-position restoration and stable-key verification for cached-target relocation.
+
+### Discovery and ownership
+
+The adapter recognizes `/c/<id>` routes, including nested Project/custom-GPT paths. New-chat/landing pages stay idle until a conversation URL exists. A single visible `main`/`role=main` is required, preferring matching `data-conversation-id` and known thread/conversation containers. Mismatched metadata and ambiguous roots fail closed. Sidebar/navigation regions, hidden/inert/aria-hidden/CSS-hidden templates are excluded.
+
+Only explicit user subtrees (`[data-message-author-role="user"]` or `[data-user-message-bubble]`) are read for previews. Explicit author roles take precedence over bubble markers; mixed nested markers are deduplicated and assistant-owned markers are excluded. Assistant bodies, draft composer values, other conversation roots, and message HTML are not read. Source-specific message/turn IDs take precedence; `data-turn-key` is supported as an in-page identity stamp and jump boundary for virtualized turns. Duplicate IDs collapse responsive copies, while duplicate text with distinct IDs/references stays distinct. Missing IDs use a per-route WeakMap key, never text identity. Only mounted visible user nodes are read; their bounded summaries may remain in the page-memory index after unmounting.
+
+The user's 2026-11-25 structural diagnostic showed a single main with zero legacy author nodes, but a selected message ancestor carrying `data-user-message-bubble`/`data-user-message-has-prompt` inside `data-turn-key` and `data-virtualized-turn` wrappers. This established an unsupported selector as a concrete failure, rather than a narrow-window issue. `conversation-user-bubbles.html` models those attribute names with synthetic keys/text and simulated layout classes; class values and real browser geometry were not captured. Tests cover detection, mixed markers, edits, insertion/removal, node recycling and native scrolling. Actual display and placement still require user verification after reloading the extension and refreshing the page.
+
+On route change, the old list/search and strong message references are cleared immediately when the change is observed. Weak metadata stamps from the previous route prevent unchanged stale nodes from being read as the new conversation, including when the root's metadata changes before its URL. New nodes or changed stable IDs can be indexed. Without ownership evidence, reused unidentifiable nodes are omitted. Clicks recheck URL, scope, visibility, stable identity and connectivity before jumping.
+
+### Scoped updates and performance
+
+A debounced (80 ms) observer watches the active conversation root. It reads mutation roles/structure first and ignores assistant-only streaming before preview extraction. It rebuilds panel entries and IntersectionObserver targets only when question keys/targets/extracted text change, keeping search input and focus stable during streaming.
+
+Shallow child-list observers on the root's ancestor chain handle remounts without a document-wide subtree watcher. A separate shallow layout attribute observer watches main ancestors and native sidebar roots, with transition-end reconciliation, without reading sidebar text. ResizeObserver reacts to column/main width and composer size, ignoring answer-driven height growth. Layout writes are animation-frame batched. An HTML-theme observer and system-theme change listener update the owned host only.
+
+Navigation API `currententrychange`, popstate and focus checks detect routes where available. A 500 ms fallback reads only `location.pathname` during a healthy session; main/root selector discovery repeats only after changes or while no supported scope is mounted. It does not monkey-patch history or use private routing state. No global scroll handler is installed; IntersectionObserver updates reading selection. Selection is held for 80ms while native intersection delivery catches up after an instant jump, without overriding user scrolling.
+
+### Geometry and accessibility
+
+Navigation occupies only a measured free left gutter beyond the native sidebar and before the message column. It defaults to a frameless 36px tick rail needing 60px total gutter; expanded width is 176–220px with 200px total gutter required. Both modes have header/composer margins and internally scroll long lists. Expansion/history controls appear on rail hover/keyboard focus; expansion is disabled if the full list would not fit. Tick previews open to the right, up to 340px wide within the viewport, matching the supplied reference; they can temporarily overlay the message column. List previews stay within navigation width. A bold single-line original-question title and muted three-line original-question preview are clickable. They do not read assistant responses. A short pointer bridge lets the cursor reach the card, and Escape/outside-click dismisses it. All message-native `title` attributes are removed in favor of text-only, three-line cards. The current tick is kept within the rail's own scroll viewport without scrolling the conversation. It never modifies native content padding or reserves space. Width below 960 CSS px, insufficient height, absent questions or uncertain column geometry hides the host safely. Column adaptation uses bounded max-width ancestors/thread class hints and can require updates for new ChatGPT layouts.
+
+### Manual history traversal
+
+Mounted `Question` objects and retained `IndexedQuestion` summaries are separate. The latter stores keys, bounded text, chronological order and an observed absolute scroll coordinate, never message/target nodes. The index merges by key and orders by measured position, preserving summaries across virtualized unmounts and same-URL root replacement. It is capped at 2,000 entries and cleared on route changes, feature disable and page teardown. Connected nodes explicitly losing their user identity invalidate the corresponding entry; unmounted/deleted nodes cannot always be distinguished, so stale cached entries can remain but fail closed on relocation.
+
+Manual scanning snapshots a reading anchor/key/viewport offset plus a numeric fallback. It traverses the native scroller from top to bottom in overlapping viewport steps, waits for rendering and merges visible user summaries. Top/bottom settling, 160 steps and a 60-second bound prevent unbounded traversal; reaching a bound retains partial discoveries. Completion/explicit Stop attempts key-based anchor restoration, then falls back to the saved position. Wheel/touch/page-pointer/scrolling-key takeover cancels without restoring; route/root replacement and disable dispose the operation without scrolling another scope. Temporary timers/listeners are removed on completion/cancel. No private API or automatic startup scan is used.
+
+Cached clicks jump once to the recorded coordinate with header clearance, then wait in place for up to ten 50ms render checks; there is no traversal through neighbouring viewports. Only a currently discovered matching key can reach the precise native jumper. Unresolved targets restore the original position and show a fixed status instead of selecting a nearby message. Coordinates are hints, never identity; there is no guarantee of discovering server-side unseen history or relocating deleted/changed branches. Tests use a virtualized renderer that unmounts/remounts turns, plus prepend shifts, stop/takeover/dispose, cache caps and failed-key relocation.
+
+Re-inspection of chatgpt-style's main content script confirmed it implements sidebar appearance rather than question navigation. The tick rail is independently implemented from the user's visual reference; no conversation-navigation algorithm was copied from that repository. Existing source separation and DOM lifecycle ownership remain in place.
+
+The Shadow DOM contains a named navigation landmark, native buttons, labeled search, bounded text-only tooltips and an aria-current reading marker. Collapse/expand preserve focus. Keyboard activation follows native buttons. Jumps choose the actual scrollable ancestor, offset below sticky headers, always request instant behavior (including with CSS smooth scrolling) and create no destination animation. No conversation URL, message editing or selection state is changed.
+
+### Privacy, lifecycle and limitations
+
+Question preview/search/collapse state stays in page memory. No conversation text, message key, query or navigation state is persisted, emitted in extension messages, logged or sent over a network. Extraction is bounded to 2,048 code units; previews/tooltips are bounded further. Version changes to 0.3.0 across package/lockfile/manifest; no dependency or permission is added.
+
+Disabling disconnects content/shell/layout/theme/resize/intersection observers, removes route/resize/focus/theme/transition listeners, clears timers/animation frames and the preview-dismiss timer, empties the panel/search, drops strong question references and resets WeakMaps. Sidebar Colors retains its independent subscriptions and UI. Existing global content pagehide/pageshow handling continues to own feature teardown/resume.
+
+Automated fixtures cover supported DOM shapes, duplicate questions, fallbacks, search, scrolling/offsets, recycled/detached targets, both URL/metadata transition orders, DOM replacement, streaming isolation, active state, safe layout, cleanup and simultaneous real color features. A separate isolated headless Chrome test with a local virtualized renderer discovered all 24 simulated questions while only three were mounted at the restored viewport, retained them, and restored the initial scroll position of 2100px. Local preview inspection also checked the bounded three-line card. Signed-in ChatGPT history loading, layout and relocation remain unverified by the agent; run the README's manual checklist on the current site.

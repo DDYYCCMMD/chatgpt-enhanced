@@ -2,7 +2,9 @@
 
 A modular Chrome extension (Manifest V3) for `https://chatgpt.com/*`.
 
-V0.2.1 supports independent **Project Colors** and **Chat Colors**: right-click a recognized sidebar row to choose Red, Orange, Yellow, Green, Blue, Purple, or Reset to default. Preferences persist locally. **Chat Navigation remains a placeholder.** All toggles default to off; existing V0.1/V0.2 preferences are preserved.
+V0.3 adds **Chat Navigation**: a searchable, collapsible list of user questions discovered in the active conversation, with manual history scanning, page-memory retention, instant jumps and best-effort active-question tracking. **Project Colors** and **Chat Colors** retain direct sidebar right-click selection, six preset colors, reset, local persistence, and independent toggles. All three features default to off; existing V0.1/V0.2 settings are preserved.
+
+Navigation starts as a frameless rail of small gray ticks, with a darker tick for the current question. Hover or keyboard-focus a tick for a bounded preview; click to jump. Hover/focus the rail to reveal the list button at its top. The expanded list uses a compact history-style layout with search, single-line previews, neutral selection, icon controls, and matching light/dark themes. Short lists shrink to their content; long lists/rails scroll within the available space.
 
 ## Install and develop
 
@@ -24,6 +26,27 @@ npm run build
 
 Wait for both watch builds to finish before reloading. Reload the extension, reopen the popup, and refresh ChatGPT after changes. Stop watch mode before a production build. `dist/` and `node_modules/` are generated; the lockfile supports reproducible `npm ci` installs. jsdom and types are test-only dependencies and are not shipped in the extension.
 
+## Using Chat Navigation
+
+1. Reload the unpacked extension, refresh ChatGPT, and enable **Chat Navigation** in the popup (version `0.3.0`).
+2. Open an existing conversation at a `/c/<conversation-id>` URL, including Project/custom-GPT nested conversation routes. New-chat pages stay idle until ChatGPT assigns a conversation URL.
+3. When enough space exists, the tick rail appears in the empty gutter to the left of the message column, beyond the native sidebar. Hover/focus for a preview; Escape or leaving/blur dismisses it. Click a tick to scroll its original user turn below the header. Duplicate question text remains separate when the messages have different IDs or DOM references.
+4. Hover or keyboard-focus the rail to reveal **展开问题导航** at the top, then click it for the full list. Use **搜索问题** to filter case-insensitively; the × icon clears the search. Tooltips show a bounded longer preview. Newlines/code are normalized; image/attachment-only and blank messages have generic fallback labels. Text is inserted as text, not HTML.
+5. Use **收起问题导航** to return to ticks. The rail includes all questions identified during this page session, even after virtualization removes them from the DOM or the full list has a search filter. Reading-state highlighting uses IntersectionObserver for mounted questions and does not drive conversation scrolling.
+6. Disable the toggle to remove the panel and dispose its observers, listeners, pending work, and message references. Project/Chat Colors continue independently.
+
+Navigation never reserves space or moves ChatGPT's existing layout. It hides on viewports below 960 CSS pixels or when vertical space is insufficient. The rail needs 60px of clear left gutter; the list needs 200px. Expansion is disabled when only the rail fits. Previews are controlled, text-only cards with a single-line original-question heading and at most three preview lines, not browser-native message titles. Tick cards open to the right, up to 340px wide within the viewport, and may temporarily overlay messages while hovered. Their bold title shows the original question; muted text shows a bounded longer version of the same question. The card itself is clickable. Expanded-list cards stay within the navigation width. Widen the window or collapse ChatGPT's sidebar to create room.
+
+### Scan and retain history
+
+Click **扫描历史问题** at the bottom of the expanded list, or the history icon revealed when hovering/focusing the tick rail. Scanning scrolls the native conversation to its top, waits briefly for older turns, and walks downward to index messages as ChatGPT renders them. Progress and a **停止并返回原位置** action are provided. On completion or explicit stop, the extension restores the original question anchor and viewport offset where possible, otherwise the saved scroll position. The status distinguishes an exact anchor restore from an approximate return. A wheel, touch, page pointer action or scrolling key cancels automation and leaves control at the user's new position. Switching conversations or disabling navigation cancels without scrolling the new page.
+
+Already discovered question summaries stay in page memory after their DOM nodes unmount, including same-conversation remounts. Clicking such an entry uses its previous scroll position as a hint, waits briefly in place for rendering, and checks the exact message/turn key before the final instant alignment. If the target cannot be found, it returns rather than selecting a different message. The retained list is searchable; the count tooltip distinguishes identified questions from currently mounted ones. Refreshing the page, changing conversation URL or disabling navigation clears the index. Nothing is written to Chrome storage.
+
+Each scan is bounded to 160 traversal steps / 60 seconds and 2,000 retained summaries. A stopped/limited scan keeps partial discoveries and can be rerun. Completion means this scan reached the current scrollable extent; it does not prove all server-side history has loaded. The extension only reads user messages rendered by the page and makes no backend/API requests. Unidentifiable recycled nodes, unstable layout coordinates, deleted messages or alternate branches can prevent reliable relocation; old cached summaries may remain until the index is cleared, but are never matched by title or jumped to by an unchecked coordinate.
+
+Question index/previews/search/collapse state are ephemeral page memory. No question text, message ID, search query, or collapse state is written to Chrome storage, sent through extension messages, logged, or transmitted. Extraction is bounded to 2,048 text code units per visible user message; previews use up to 88 Unicode characters and tooltips up to 360. Search covers the extracted text, not the unbounded original message.
+
 ## Use Project Colors and Chat Colors
 
 1. Enable **Project Colors**, **Chat Colors**, or both in the popup. Chat Navigation is independent.
@@ -33,7 +56,7 @@ Wait for both watch builds to finish before reloading. Reload the extension, reo
 
 Direct right-click opens the color menu on a reliably identified Project/Chat whose color feature is enabled. No modifier key is required. Native three-dot controls, unrecognized items, disabled features, and other page areas keep their original behavior. Click outside or press Escape to dismiss. Keyboard context-menu opening depends on Chrome and the native row; inside the menu, arrows/Home/End navigate and Enter/Space selects. Tab closes it. The menu fits or scrolls inside the viewport and closes on page scrolling, resize, or window blur. A failed save rolls back the highlight and displays a retry message.
 
-The extension does not handle left-click events, so normal navigation stays native. Nested three-dot/menu controls and unrecognized items keep native context behavior. There is one shared context listener, one menu, and one sidebar watcher even when both color features are enabled.
+Sidebar Colors does not handle host left-click events, so normal sidebar navigation stays native. Chat Navigation handles only its own panel controls. Nested three-dot/menu controls and unrecognized items keep native context behavior. There is one shared context listener, one menu, and one sidebar watcher even when both color features are enabled.
 
 ## V0.2 failure diagnosis
 
@@ -61,6 +84,10 @@ The reference's title-derived identity fallback is intentionally not adopted bec
 
 Open the extension popup while the failing ChatGPT tab is active. The new **检查当前页** button checks a same-extension message connection to the top-frame content script. It reports the page script version, settings state, independent feature readiness, detected Project/Chat counts, and whether the latest context event stayed native, opened a color menu, or was unrecognized. The popup also runs this check when opened. After changing a toggle, click the button to refresh the report.
 
+For a missing question panel, read the **问题导航** line. It distinguishes an unrecognized conversation address/container, zero discovered user messages, and a panel hidden by layout constraints. Layout diagnostics include only viewport width and measured gutter width, plus an identified-question count; they never include question text or conversation identifiers. Reload the extension and refresh ChatGPT after rebuilding so both sides use the current diagnostic protocol.
+
+If it reports zero user messages despite visible questions, select one of your message bubbles using DevTools' element picker, review and run [docs/navigation-diagnostic.js](docs/navigation-diagnostic.js) in the page Console. This reports a bounded ancestor chain and candidate-container counts to distinguish a wrong scope from unsupported author markers or visibility filtering. It includes attribute names and fixed role labels, never attribute identifiers/values or message text. It makes no changes or network requests.
+
 If it reports no connection or an unsupported old script, reload the extension at `chrome://extensions` and refresh the ChatGPT tab. If a feature is off, its native context behavior is intentional. If connected/enabled with zero detected rows, collect the structural report below. If rows are detected but a sidebar right-click remains unrecognized, share the status text and selected item's structural attributes. This separates loading, settings, detection, and event problems rather than assuming one cause from the browser menu screenshot.
 
 The check sends only a fixed internal message and returns booleans/counts/status labels. It does not transmit IDs, URLs, titles, message bodies, or other content. It adds no permission: basic active-tab ID querying and content-script messaging do not require access to sensitive tab properties. See [Chrome Tabs permissions](https://developer.chrome.com/docs/extensions/reference/api/tabs#permissions).
@@ -76,24 +103,42 @@ If Chrome blocks pasting, you can instead read the selected element and its ance
 
 The Console's “Don't paste code…” message is Chrome's [self-XSS protection](https://developer.chrome.com/blog/self-xss); it is not evidence that the snippet ran. An inline-script CSP violation is a separate blocked execution and needs its source link/stack to attribute. This extension and the diagnostic do not inject script tags, use inline event-handler attributes, or change CSP. Do not disable CSP for this extension. See [Chrome content-script isolation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) and [script-src documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src).
 
-To check registration without console code, open DevTools **Sources → Content scripts → ChatGPT Enhanced**, and verify `content.js` appears. Also inspect errors on the extension card at `chrome://extensions`. In the popup, verify version `0.2.1` and that the relevant feature toggle is on.
+To check registration without console code, open DevTools **Sources → Content scripts → ChatGPT Enhanced**, and verify `content.js` appears. Also inspect errors on the extension card at `chrome://extensions`. In the popup, verify version `0.3.0` and that the relevant feature toggle is on.
 
 ## Manual Chrome testing
 
 Use ordinary secondary click for all color-menu tests below: on a Mac trackpad, use a two-finger secondary click; with a mouse, use its right button. No Option, Shift, or other modifier is required. Reload the extension and refresh ChatGPT after updating so an older modifier-based script is not left running. Verify that native three-dot controls and unrelated page areas keep their existing menus.
 
-1. Build, reload the unpacked extension, and refresh ChatGPT. Verify popup version `0.2.1`, three independent toggles, and retained V0.2 settings.
+1. Build, reload the unpacked extension, and refresh ChatGPT. Verify popup version `0.3.0`, three independent toggles, and retained V0.2 settings.
 2. Enable Project Colors alone. Right-click actual project label text, its header button, and surrounding row padding. Test all six colors and Reset. Try duplicate Project names and renaming; colors must follow IDs. Confirm three-dot controls and ordinary chats keep native behavior.
 3. Disable Project Colors, enable Chat Colors. Color two ordinary chats with the same title differently. Color a rendered conversation nested in a Project; the conversation ID must keep its color when rendered as a normal history entry. Confirm Project headers keep native behavior.
 4. Enable both. Alternate between Project and Chat menus; only one menu should be present. Reset one item and verify all others remain colored. Test cross-tab changes, including reset.
-5. Disable each feature separately while its menu is open. Its menu/highlights must disappear while the other feature still works. Re-enable and confirm saved values return. Chat Navigation must stay unaffected and inert.
+5. Disable each feature separately while its menu is open. Its menu/highlights must disappear while the other feature still works. Re-enable and confirm saved values return. The Chat Navigation panel must remain independent when either color feature is toggled.
 6. Rename items, switch chats/Projects, collapse/expand the sidebar, resize desktop/mobile layouts, navigate back/forward, and refresh. Restart Chrome. Verify restored colors and no duplicate menus/listeners or stale row colors.
 7. Confirm left-click navigation, expansion, hover/selection/focus, and native three-dot menus still work. Test light/dark themes, RTL if available, viewport edges/short windows, Escape/outside dismissal, keyboard navigation/selection, and page scrolling.
 8. Confirm typing and conversation scrolling work normally, and inspect both page/extension errors. Do not assume passing fixtures establish real DOM compatibility. If a native menu still appears, collect the bounded structural diagnostic above.
 
+## Manual Chat Navigation checklist
+
+1. Verify `0.3.0` in the popup and enable Chat Navigation on a long signed-in conversation with a wide viewport. Confirm a frameless tick rail appears between the native sidebar and message column and above the composer. Hover/focus ticks to preview; test Escape and pointer-leave dismissal. Expand using the top button; neither list nor previews should cover sidebar, messages or composer.
+2. Compare list order with rendered user turns, including two identical prompts. Confirm assistant answers, hidden templates, unsent composer text, and other conversations do not appear.
+3. Test multiline/code prompts, long Unicode text, image/attachment-only messages, and edited prompts. Confirm readable previews, generic attachment labels, and bounded tooltips.
+4. Search with different letter cases, clear the search, and verify original order/numbers. Test a query with angle brackets; no HTML should execute.
+5. Click early/middle/late entries or the preview card and check an immediate jump below sticky headers. Even if the native scroller uses CSS smooth scrolling, no animated traversal or destination flashing should occur. The URL must not change. Try a target just removed by a branch/edit or virtualized history; it should fail safely.
+6. Scroll manually through user/assistant turns; the highlighted question should follow reading position without causing any scrolling. Click an entry during manual scrolling and verify no repeated forced jumps.
+7. Send a new user prompt and wait through assistant streaming: the new entry should appear once and the existing question list/search focus should remain stable during the answer. Edit/regenerate/change branches and verify stale entries disappear.
+8. Switch conversations using the native sidebar, including Project chats, and browser back/forward. Old question text/search/targets must clear and only the new conversation should populate the list. Same-conversation remounts should retain known summaries without retaining detached message nodes.
+9. Collapse/expand the navigation and use Tab/Enter to operate its controls. Change light/dark theme, collapse/expand ChatGPT's native sidebar, resize the browser, and grow the composer. At narrow widths or insufficient left gutter the panel should hide safely; restoring space should show it again.
+10. Toggle Chat Navigation off while a jump or answer is in progress; panel/highlight work should stop. Re-enable and verify a single panel. Independently test Project Colors and Chat Colors, right-click menus, reset, and normal typing/left-click navigation.
+11. Inspect Chrome storage and extension diagnostics if desired: only existing preferences and color IDs should be present; no message previews or search queries should be stored or included in diagnostics. Check page/extension consoles for errors without sharing conversation content.
+12. Start a history scan halfway through a long virtualized conversation. Confirm the count grows, cached questions remain after returning, and your original reading offset is restored. Stop midway; then repeat and use the wheel to take over. Switch conversation or disable during a scan and verify no subsequent automated scrolling. Click a cached old question and verify exact identity relocation or a clear failure message. Test a long preview: no large browser-native text box should appear.
+
+If the panel is absent on a wide window, first ensure a conversation URL and mounted user turns exist and there is actual space left of the content column. The compatibility adapter requires visible `main`/`role=main` and either `[data-message-author-role="user"]` or `[data-user-message-bubble]` nodes. The latter was added after the user's diagnostic showed zero legacy author markers on the real page. If these differ, report only structural attributes and measurements; a screenshot or question text is not required.
+
+
 ## Compatibility and unverified behaviors
 
-**Live Chrome/ChatGPT testing for V0.2.1 was unavailable: browser control timed out.** The following remain explicitly unverified on the current site: additional Project metadata/header variants beyond the supplied capture, ordinary and Project-nested Chat hit areas on the running site, competing native context handlers, mobile/sidebar replacement layouts, visual themes/focus/viewport placement, extension loading/CSP in Chrome, persistence across a real browser restart, and two-tab interaction. jsdom covers logic and modeled DOM behavior, not these live guarantees.
+The user confirmed that navigation appeared after adding bubble-marker detection. **History scanning/relocation and the refined previews still need signed-in ChatGPT verification.** Local headless Chrome previews, automated virtualized-history fixtures and compiled-bundle tests do not establish all current real-site layouts, native focus/CSP behavior, real relocation/IntersectionObserver timing, mobile layouts, or persistence after an actual Chrome restart. Run the manual checklist above in signed-in Chrome.
 
 Detection uses exact canonical IDs, never titles. Supported Project routes include `/g/g-p-<32-hex-or-UUID>[-slug]` with optional `/project`, and `/project(s)/g-p-<id>`. Explicit project metadata may use canonical `g-p-` IDs or bare stable IDs, normalized to `g-p-…`. Chat routes use `/c/<stable-id>` or `/g/<stable-gizmo-id>[-slug]/c/<stable-id>`; arbitrary title-like segments are rejected. Unsupported formats fail closed.
 
@@ -108,7 +153,7 @@ public/manifest.json             MV3; storage permission only
 src/content/                    Content entry and existing lifecycle
 src/features/project-colors/    Project-specific identity/detection and adapter
 src/features/chat-colors/       Chat-specific identity/detection and adapter
-src/features/chat-navigation/   Inert placeholder
+src/features/chat-navigation/   Discovery, previews, panel/layout, scrolling, active tracking, lifecycle
 src/shared/sidebar-colors/      Palette, menu, rendering, sidebar watcher, shared lifecycle
 src/storage/                    Toggle settings and generic namespaced color store
 src/popup/                      Independent feature toggles
@@ -117,6 +162,10 @@ tests/                          Storage/DOM regression fixtures and diagnostics 
 docs/                           Architecture and safe diagnosis
 ```
 
-Only `storage` permission is requested. No backend, telemetry, OpenAI API, external assets, runtime network requests, or application-internal APIs/state access are added. Stored data consists of booleans, stable item IDs, and six preset color names; no titles or message bodies. The content script reads navigation attributes, adds namespaced row attributes and owned style/menu nodes, and never modifies underlying Project or conversation data.
+Only `storage` permission is requested. No backend, telemetry, OpenAI API, external assets, runtime network requests, or application-internal APIs/state access are added. Stored data consists of booleans, stable item IDs, and six preset color names; no titles or message bodies. Sidebar Colors reads navigation attributes and adds namespaced row attributes and owned style/menu nodes. When enabled, Chat Navigation additionally reads only visible user-message text in the active rendered conversation and builds an ephemeral Shadow DOM panel. It never reads assistant bodies, persists conversation content, requests backend history, or changes underlying Project/conversation data.
 
 See [architecture](docs/architecture.md), [Vite build documentation](https://vite.dev/guide/build.html), and [Chrome storage API documentation](https://developer.chrome.com/docs/extensions/reference/api/storage).
+
+Chat Navigation currently recognizes a single visible conversation main, preferring matching `data-conversation-id` and known conversation/thread containers. Stable message/turn metadata is preferred; DOM reference keys are scoped to the current route when absent. Hidden/inert messages and assistant subtrees are excluded. Ambiguous or mismatched roots remain idle. Reused message nodes with unchanged old metadata are withheld during conversation transitions until ownership can be established; if a future layout reuses unidentifiable nodes without changing metadata, the panel may temporarily omit those questions rather than expose stale content.
+
+The positioning adapter measures bounded-width ancestors/known thread utility classes and falls back conservatively to turn bounds. Unknown column layouts, RTL variants, unusual fixed headers, or compact/sidebar-heavy windows may hide the panel. Active tracking is best-effort for the mounted user turns; it is unavailable without IntersectionObserver. All of these real-site behaviors remain part of manual verification.

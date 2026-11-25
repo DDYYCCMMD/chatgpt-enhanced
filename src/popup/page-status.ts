@@ -1,5 +1,28 @@
 import { isPageStatus, PAGE_STATUS_REQUEST } from '../shared/page-status.ts';
 import type { PageStatus } from '../shared/page-status.ts';
+import type { NavigationStatus } from '../shared/navigation-status.ts';
+
+export function describeNavigation(status: NavigationStatus): string {
+  const count = `已识别当前会话累计 ${status.questions} 条用户问题`;
+  switch (status.phase) {
+    case 'disabled': return '问题导航：关闭。';
+    case 'waiting-conversation': return '问题导航：未识别到会话地址，请打开一个已有聊天。';
+    case 'waiting-container': return '问题导航：没有识别到当前会话容器，可能是页面结构不兼容。';
+    case 'empty': return '问题导航：已找到会话容器，但没有识别到已渲染的用户消息。';
+    case 'measuring': return `问题导航：${count}，正在测量布局。`;
+    case 'visible': return `问题导航：${count}，面板已显示。`;
+    case 'collapsed': return `问题导航：${count}，刻度模式已显示。`;
+    case 'hidden': {
+      const reason = {
+        narrow: `窗口宽度 ${status.viewportWidth}px 不足 960px`,
+        gutter: `左侧空隙 ${status.gutter}px 不足以显示导航（刻度需 60px，列表需 200px），请收起 ChatGPT 侧边栏或放大窗口`,
+        height: '输入框或顶部区域占用较多空间，可用高度不足',
+        'unknown-column': '无法确定消息列的位置', none: '尚未得到安全的显示位置',
+      }[status.reason];
+      return `问题导航：${count}，当前隐藏：${reason}。`;
+    }
+  }
+}
 
 export function describePageStatus(status: PageStatus, popupVersion: string): string {
   const lines = [`页面脚本：${status.version}（已连接）`];
@@ -8,6 +31,7 @@ export function describePageStatus(status: PageStatus, popupVersion: string): st
   else if (status.phase === 'loading') lines.push('页面设置仍在加载，请稍后重试。');
   lines.push(`Project Colors：${status.settings.projectColors ? status.projectReady ? '已开启' : '正在加载/读取失败' : '关闭'}`);
   lines.push(`Chat Colors：${status.settings.chatColors ? status.chatReady ? '已开启' : '正在加载/读取失败' : '关闭'}`);
+  lines.push(describeNavigation(status.navigation));
   lines.push(`识别到 ${status.projects} 个项目、${status.chats} 个聊天（${status.roots} 个侧边栏区域）。`);
   if (!status.settings.projectColors && !status.settings.chatColors) lines.push('两个颜色开关均关闭，右键会保留浏览器菜单。');
   else if (!status.roots) lines.push('未发现侧边栏，请展开 ChatGPT 侧边栏再检查。');

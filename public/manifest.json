@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Enhanced",
-  "version": "0.2.1",
-  "description": "Customize ChatGPT Projects and Chats with persistent sidebar color highlights.",
+  "version": "0.3.0",
+  "description": "Navigate rendered conversation questions and customize ChatGPT Project and Chat colors.",
   "minimum_chrome_version": "111",
   "permissions": ["storage"],
   "action": {
