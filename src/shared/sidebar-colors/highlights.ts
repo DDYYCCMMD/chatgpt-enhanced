@@ -11,7 +11,9 @@ export function createHighlightRenderer(kind: ColorKind) {
     style.setAttribute(`data-cge-${kind}-styles`, '');
     style.textContent = `
       [${COLOR_ATTRIBUTE}] {
-        --cge-tint-alpha: .10;
+        --cge-tint-light: .22;
+        --cge-tint-dark: .28;
+        --cge-tint-alpha: var(--cge-tint-light);
         background-image: linear-gradient(90deg, rgb(var(--cge-color)) 0 3px, transparent 3px),
           linear-gradient(rgb(var(--cge-color) / var(--cge-tint-alpha)), rgb(var(--cge-color) / var(--cge-tint-alpha)));
       }
@@ -19,9 +21,9 @@ export function createHighlightRenderer(kind: ColorKind) {
         background-image: linear-gradient(270deg, rgb(var(--cge-color)) 0 3px, transparent 3px),
           linear-gradient(rgb(var(--cge-color) / var(--cge-tint-alpha)), rgb(var(--cge-color) / var(--cge-tint-alpha)));
       }
-      @media (prefers-color-scheme: dark) { [${COLOR_ATTRIBUTE}] { --cge-tint-alpha: .18; } }
-      :is(.dark, [data-theme="dark"]) [${COLOR_ATTRIBUTE}] { --cge-tint-alpha: .18; }
-      :is(.light, [data-theme="light"]) [${COLOR_ATTRIBUTE}] { --cge-tint-alpha: .10; }
+      @media (prefers-color-scheme: dark) { [${COLOR_ATTRIBUTE}] { --cge-tint-alpha: var(--cge-tint-dark); } }
+      :is(.dark, [data-theme="dark"]) [${COLOR_ATTRIBUTE}] { --cge-tint-alpha: var(--cge-tint-dark); }
+      :is(.light, [data-theme="light"]) [${COLOR_ATTRIBUTE}] { --cge-tint-alpha: var(--cge-tint-light); }
       ${Object.entries(COLOR_RGB).map(([color, rgb]) => `[${COLOR_ATTRIBUTE}="${color}"] { --cge-color: ${rgb}; }`).join('\n')}
     `;
     document.head.append(style);
