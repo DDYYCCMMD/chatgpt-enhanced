@@ -150,6 +150,7 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
   let questions: readonly QuestionSummary[] = [];
   let mountedCount = 0;
   let busy = false;
+  let canSeek = false;
   let active: string | null = null;
   let collapsed = true;
   panel.hidden = true;
@@ -171,12 +172,12 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
   const keepPreview = () => { document.defaultView!.clearTimeout(hideTimer); hideTimer = undefined; };
   tooltip.addEventListener('pointerenter', keepPreview); tooltip.addEventListener('pointerleave', deferHide);
   tooltip.addEventListener('focusin', keepPreview); tooltip.addEventListener('focusout', deferHide);
-  previewJump.addEventListener('click', () => { const key = previewKey; hidePreview(); if (key && !busy) onJump(key); });
+  previewJump.addEventListener('click', () => { const key = previewKey; hidePreview(); if (key && (!busy || canSeek)) onJump(key); });
   const outside = (event: Event) => { if (!event.composedPath().includes(host)) { hidePreview(); hideHint(); } };
   document.addEventListener('pointerdown', outside);
   function showPreview(button: HTMLButtonElement, question: QuestionSummary): void {
     hidePreview();
-    if (host.hidden || previewWidth < 120 || busy) return;
+    if (host.hidden || previewWidth < 120 || (busy && !canSeek)) return;
     previewKey = question.key;
     tooltipNumber.textContent = question.preview; tooltipText.textContent = question.tooltip;
     previewJump.setAttribute('aria-label', `跳转到问题 ${question.order}：${question.preview}`);
@@ -194,7 +195,7 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
     for (const question of questions) {
       const item = document.createElement('li');
       const tick = document.createElement('button'); tick.type = 'button'; tick.className = 'tick';
-      tick.dataset.questionKey = question.key; tick.disabled = busy;
+      tick.dataset.questionKey = question.key; tick.disabled = busy && !canSeek;
       tick.setAttribute('aria-label', `问题 ${question.order}：${question.preview}`);
       tick.setAttribute('aria-current', String(question.key === active));
       tick.addEventListener('pointerenter', () => showPreview(tick, question));
@@ -211,7 +212,7 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
     for (const question of filtered) {
       const item = document.createElement('li');
       const button = document.createElement('button'); button.type = 'button'; button.className = 'question';
-      button.dataset.questionKey = question.key; button.disabled = busy;
+      button.dataset.questionKey = question.key; button.disabled = busy && !canSeek;
       button.setAttribute('aria-label', `问题 ${question.order}：${question.preview}`);
       button.setAttribute('aria-current', String(question.key === active));
       const number = document.createElement('span'); number.className = 'number'; number.textContent = `${question.order}.`;
@@ -254,7 +255,7 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
       render();
     },
     setHistoryState(state: HistoryState): void {
-      busy = state.busy; scanLabel.textContent = busy ? '停止并返回原位置' : '扫描历史问题';
+      busy = state.busy; canSeek = state.canSeek === true; scanLabel.textContent = busy ? '停止并返回原位置' : '扫描历史问题';
       scanStatus.textContent = state.text;
       scanRail.dataset.busy = String(busy);
       scanRail.dataset.error = String(!busy && state.text.startsWith('定位失败'));
@@ -263,7 +264,7 @@ export function createQuestionPanel(document: Document, onJump: (key: string) =>
       scanRail.setAttribute('aria-label', busy ? '停止并返回原位置' : '扫描历史问题');
       panel.setAttribute('aria-busy', String(busy));
       if (busy) hidePreview();
-      for (const button of [...buttons.values(), ...tickButtons.values()]) button.disabled = busy;
+      for (const button of [...buttons.values(), ...tickButtons.values()]) button.disabled = busy && !canSeek;
     },
     setActive(key: string | null): void {
       active = key;

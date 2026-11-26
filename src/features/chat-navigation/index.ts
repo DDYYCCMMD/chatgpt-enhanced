@@ -58,7 +58,7 @@ export function enableChatNavigation(document: Document, window: Window): () => 
     const question = matches[0];
     if (question && requested.searchText !== requested.tooltip && requested.searchText !== question.searchText) return;
     const currentScope = route ? findConversation(document, route) : null;
-    if (!session || session.history.busy || currentScope?.root !== session.scope.root) return;
+    if (!session || (session.history.busy && !session.history.canSeek) || currentScope?.root !== session.scope.root) return;
     if (question && !isCurrentQuestion(question, session.scope.root)) {
       scheduleRefresh(); return;
     }

@@ -22,6 +22,20 @@ function setup(t: TestContext, bubbles = false, rail = false) {
   return { ...context, storage, stop, host, shadow, questions };
 }
 
+test('a new destination stays selectable during verification and supersedes the previous guard safely', async (t) => {
+  const s = setup(t); await settleNavigation();
+  s.questions()[1]!.click();
+  assert.equal(s.shadow().querySelector('.panel')!.getAttribute('aria-busy'), 'true');
+  assert(s.questions().every((button) => !button.disabled));
+  s.questions()[4]!.click();
+  await settleNavigation();
+  assert.equal(s.scrollArea.scrollTop, 1652);
+  assert.equal(s.shadow().querySelector('.panel')!.getAttribute('aria-busy'), 'true');
+  await new Promise((resolve) => setTimeout(resolve, 1400));
+  assert.equal(s.scrollArea.scrollTop, 1652);
+  assert.equal(s.shadow().querySelector('.panel')!.getAttribute('aria-busy'), 'false');
+});
+
 test('a recycled bubble whose text changes before debounce cannot jump under its old label', async (t) => {
   const s = setup(t, true); await settleNavigation();
   const button = s.questions()[0]!;

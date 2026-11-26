@@ -139,6 +139,12 @@ The Shadow DOM contains a named navigation landmark, native buttons, labeled sea
 
 ### Privacy, lifecycle and limitations
 
+Seek readiness and request handoff are described in the [performance follow-up](navigation-performance-verification.md). A per-operation observer wakes a waiter on the next frame only when the requested user anchor mounts; timed polling remains available. Session-only position samples pair native height/width with coordinates and are stripped from restored/persisted summaries. End-relative and cold-directory boundary probes remain hints, with the original coordinate and exact-identity traversal retained as fallbacks.
+
+During seeks, controls remain usable. Requests capture the clicked snapshot, cancel the previous operation without restoration, wait for its cleanup, and coalesce to the latest intent. User takeover and disposal invalidate queued requests. The next operation rediscovers mounted DOM before selecting its scroll container. Scans keep question controls blocked. Stability verification still lasts 1.2 seconds after the last correction.
+
+At a local native top, a quiet height/key signature does not prove earlier history has loaded. If all mounted known questions come after the requested entry, a seek keeps requesting older history within its overall budget instead of prematurely traversing down. Scans retain their separate top-settling bound. The readiness observer and any pending frame are cleaned on completion and synchronously on disposal.
+
 Question previews remain in page memory by default. An independent, off-by-default local-backup setting permits bounded question previews, identifiers and position hints in chrome.storage.local; the user explicitly opted to add this capability. Assistant bodies, full extracted search text, queries and collapse state are not backed up. No conversation text is emitted in extension messages, logged or sent over a network. Extraction is bounded to 2,048 code units; previews/tooltips are bounded further. Version changes to 0.3.0 across package/lockfile/manifest; no dependency or permission is added.
 
 Disabling disconnects content/shell/layout/theme/resize/intersection observers, removes route/resize/focus/theme/transition listeners, clears timers/animation frames and the preview-dismiss timer, empties the panel/search, drops strong question references and resets WeakMaps. Sidebar Colors retains its independent subscriptions and UI. Existing global content pagehide/pageshow handling continues to own feature teardown/resume.

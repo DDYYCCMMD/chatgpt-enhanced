@@ -20,7 +20,8 @@ export function createQuestionIndex(window: Window, limit = 2000) {
         const known = entries.get(entry.key) ?? [...entries.values()].find((known) => sameQuestionSnapshot(known, entry));
         if (known) { if (!restored.includes(known.key)) restored.push(known.key); continue; }
         if (entries.size >= limit) continue;
-        entries.set(entry.key, { ...entry }); restored.push(entry.key);
+        const { positionSample: _sessionGeometry, ...summary } = entry;
+        entries.set(entry.key, { ...summary }); restored.push(entry.key);
       }
       // Storage can return after the page has already mounted its last turns.
       // Keep live values, but do not put that tail before the restored history.
@@ -54,7 +55,9 @@ export function createQuestionIndex(window: Window, limit = 2000) {
             previousWindow = previousWindow.map((item) => item === alias ? key : item);
           }
         }
-        entries.set(key, { key, identityKeys: question.identityKeys ?? [], preview, tooltip, searchText, order: ordinal, position: Math.max(0, position) });
+        entries.set(key, { key, identityKeys: question.identityKeys ?? [], preview, tooltip, searchText, order: ordinal, position: Math.max(0, position),
+          positionSample: { height: container?.scrollHeight ?? question.message.ownerDocument.scrollingElement?.scrollHeight ?? 0,
+            width: container?.clientWidth || window.innerWidth } });
         windowKeys.push(key);
       }
       // Native history loading rebases pixels. Preserve known logical order and

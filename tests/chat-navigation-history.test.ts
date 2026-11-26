@@ -9,7 +9,7 @@ import type { Question } from '../src/features/chat-navigation/types.ts';
 import { navigationDom } from './helpers/navigation-dom.ts';
 import { createMessageJumper, moveConversation } from '../src/features/chat-navigation/scroll.ts';
 
-function setup(t: TestContext, limit = 2000, maxSteps = 40, timing: { stabilityMs?: number; boundaryMs?: number; orderGuide?: boolean } = {}) {
+function setup(t: TestContext, limit = 2000, maxSteps = 40, timing: { settleMs?: number; stabilityMs?: number; boundaryMs?: number; orderGuide?: boolean; maxDurationMs?: number } = {}) {
   const s = navigationDom();
   const root = s.document.getElementById('thread')!;
   const scope = { root, main: s.document.querySelector('main')! };
@@ -110,6 +110,155 @@ test('stop restores the original position, while wheel takeover and disposal pre
   await disposed;
   assert.equal(s.moves.length, moveCount);
   assert.equal(s.history.busy, false);
+  assert(s.mutations.every((observer) => !observer.observing));
+});
+
+test('session geometry relocates a rebased target in one probe without scanning neighbouring viewports', async (t) => {
+  const s = setup(t); await s.history.scan();
+  s.model.forEach((item) => { item.top += 4000; });
+  s.setScrollHeight(7200); s.scrollArea.scrollTop = 5700; s.render(); s.refresh();
+  const before = s.moves.length;
+  await s.history.seek('message:turn-key:m1');
+  assert.deepEqual(s.moves.slice(before), [4684]);
+  assert.deepEqual(s.resolved, ['message:turn-key:m1']);
+  assert.match(s.states.at(-1)!.text, /已定位/);
+});
+
+test('a quiet local top showing later known messages waits for older target loading instead of traversing away', async (t) => {
+  const s = setup(t); await s.history.scan();
+  const positions = s.model.map((item) => item.top);
+  const move = s.scrollArea.scrollTo;
+  let started = false; let timer: ReturnType<typeof setTimeout> | undefined;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    if (!started && (options.top ?? 0) < 100) {
+      started = true;
+      s.model.forEach((item, i) => { item.top = i === 2 ? 100 : 5000 + i * 1000; });
+      timer = setTimeout(() => {
+        s.model.forEach((item, i) => { item.top = positions[i]!; }); s.render();
+      }, 150);
+    }
+    move(options);
+  }) as typeof s.scrollArea.scrollTo;
+  t.after(() => clearTimeout(timer));
+  await s.history.seek('message:turn-key:m0');
+  assert.deepEqual(s.resolved, ['message:turn-key:m0']);
+  assert.equal(s.scrollArea.scrollTop, 84);
+  assert.match(s.states.at(-1)!.text, /已定位/);
+});
+
+test('an incorrect end-distance probe falls back to original coordinates and never selects a neighbour', async (t) => {
+  const s = setup(t); await s.history.scan();
+  s.setScrollHeight(7200); s.refresh(); // New content below, not a prefix rebase.
+  const before = s.moves.length;
+  await s.history.seek('message:turn-key:m1');
+  assert.deepEqual(s.moves.slice(before), [4684, 684]);
+  assert.deepEqual(s.resolved, ['message:turn-key:m1']);
+  assert.equal(s.scrollArea.scrollTop, 684);
+});
+
+test('resizing invalidates session projection and restored summaries never retain old layout samples', async (t) => {
+  const s = setup(t); await s.history.scan();
+  const saved = s.index.merge([]).map((entry) => ({ ...entry }));
+  s.setScrollHeight(7200);
+  Object.defineProperty(s.window, 'innerWidth', { value: 1600, writable: true });
+  s.refresh();
+  const before = s.moves.length;
+  await s.history.seek('message:turn-key:m1');
+  assert.deepEqual(s.moves.slice(before), [684]);
+  s.index.clear(); s.index.restore(saved);
+  assert(s.index.merge([]).every((entry) => entry.positionSample === undefined));
+});
+
+test('exact target mounting wakes the waiter before its timed poll and disposes the readiness observer', async (t) => {
+  const s = setup(t, 2000, 40, { settleMs: 120, stabilityMs: 20 });
+  s.scrollArea.scrollTop = 600; s.render(); s.refresh();
+  s.scrollArea.scrollTop = 1700; s.render(); s.refresh();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    s.scrollArea.scrollTop = options.top ?? 0; s.moves.push(s.scrollArea.scrollTop);
+    clearTimeout(timer); timer = setTimeout(s.render, 10);
+  }) as typeof s.scrollArea.scrollTo;
+  t.after(() => clearTimeout(timer));
+  const nativeTimeout = s.window.setTimeout.bind(s.window);
+  let timedPollsBeforeMatch = 0;
+  s.window.setTimeout = ((callback: TimerHandler, delay?: number) => nativeTimeout(() => {
+    if (delay === 120 && !s.resolved.length) timedPollsBeforeMatch++;
+    if (typeof callback === 'function') callback();
+  }, delay)) as typeof s.window.setTimeout;
+  await s.history.seek('message:turn-key:m1');
+  assert.deepEqual(s.resolved, ['message:turn-key:m1']);
+  assert.equal(timedPollsBeforeMatch, 0);
+  assert(s.mutations.every((observer) => !observer.observing));
+});
+
+test('early readiness does not declare success before an 800ms snap-back and revalidates the exact target', async (t) => {
+  const s = setup(t, 2000, 40, { settleMs: 20, stabilityMs: 1000, maxDurationMs: 4000 });
+  s.scrollArea.scrollTop = 600; s.render(); s.refresh();
+  s.scrollArea.scrollTop = 1700; s.render(); s.refresh();
+  const move = s.scrollArea.scrollTo;
+  let timer: ReturnType<typeof setTimeout> | undefined; let scheduled = false;
+  s.scrollArea.scrollTo = ((options: ScrollToOptions) => {
+    move(options);
+    if (!scheduled) {
+      scheduled = true;
+      timer = setTimeout(() => {
+        assert.equal(s.states.at(-1)!.busy, true);
+        s.scrollArea.scrollTop = 1700; s.render();
+      }, 800);
+    }
+  }) as typeof s.scrollArea.scrollTo;
+  t.after(() => clearTimeout(timer));
+  await s.history.seek('message:turn-key:m1');
+  assert(s.resolved.length >= 2);
+  assert(s.resolved.every((key) => key === 'message:turn-key:m1'));
+  assert.equal(s.scrollArea.scrollTop, 684);
+  assert.match(s.states.at(-1)!.text, /已定位/);
+});
+
+test('rapid requests finish the old guard and execute only the latest queued destination', async (t) => {
+  const s = setup(t); await s.history.scan();
+  const first = s.history.seek('message:turn-key:m3');
+  const second = s.history.seek('message:turn-key:m1');
+  const latest = s.history.seek('message:turn-key:m4');
+  await Promise.all([first, second, latest]);
+  assert.deepEqual(s.resolved, ['message:turn-key:m3', 'message:turn-key:m4']);
+  assert.equal(s.scrollArea.scrollTop, 2484);
+  assert.equal(s.history.canSeek, false);
+  const moves = s.moves.length;
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(s.moves.length, moves);
+  assert(s.mutations.every((observer) => !observer.observing));
+});
+
+test('manual takeover and disposal invalidate queued seeks before they can move the page', async (t) => {
+  const s = setup(t); await s.history.scan();
+  const first = s.history.seek('message:turn-key:m3');
+  const queued = s.history.seek('message:turn-key:m1');
+  s.scrollArea.scrollTop = 800; s.render();
+  s.window.dispatchEvent(new s.dom.window.WheelEvent('wheel'));
+  await Promise.all([first, queued]);
+  assert.deepEqual(s.resolved, ['message:turn-key:m3']);
+  assert.equal(s.scrollArea.scrollTop, 800);
+  s.resolved.length = 0;
+  const active = s.history.seek('message:turn-key:m1');
+  const pending = s.history.seek('message:turn-key:m4');
+  s.history.dispose();
+  const moves = s.moves.length;
+  await Promise.all([active, pending]);
+  assert(!s.resolved.includes('message:turn-key:m4'));
+  assert.equal(s.moves.length, moves);
+  assert.equal(s.history.busy, false);
+});
+
+test('a queued click keeps its original preview snapshot when the target is edited during handoff', async (t) => {
+  const s = setup(t); await s.history.scan();
+  const first = s.history.seek('message:turn-key:m3');
+  const queued = s.history.seek('message:turn-key:m1');
+  s.model[1]!.text = 'Edited after the click was queued';
+  await Promise.all([first, queued]);
+  assert.deepEqual(s.resolved, ['message:turn-key:m3']);
+  assert.match(s.states.at(-1)!.text, /预览已变化/);
+  assert.equal(s.scrollArea.scrollTop, 1884);
 });
 
 test('scan caps and entry caps return partial results and still restore the reading position', async (t) => {

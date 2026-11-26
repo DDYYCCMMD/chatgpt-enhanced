@@ -14,6 +14,8 @@ export interface Question extends QuestionSummary {
 
 export interface IndexedQuestion extends QuestionSummary {
   position: number;
+  // Session-only geometry. Storage validation deliberately omits this sample.
+  positionSample?: { height: number; width: number };
 }
 
 export interface ConversationScope {

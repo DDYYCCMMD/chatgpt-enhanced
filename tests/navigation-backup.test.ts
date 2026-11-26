@@ -5,7 +5,8 @@ import { mockChromeStorage } from './helpers/chrome-storage.ts';
 import { navigationDom, FIRST_CONVERSATION, SECOND_CONVERSATION } from './helpers/navigation-dom.ts';
 import type { IndexedQuestion } from '../src/features/chat-navigation/types.ts';
 
-const row: IndexedQuestion = { key: 'message:id:unique', preview: 'Preview', tooltip: 'Longer preview', searchText: 'NOT PERSISTED FULL TEXT', order: 1, position: 1200 };
+const row: IndexedQuestion = { key: 'message:id:unique', preview: 'Preview', tooltip: 'Longer preview', searchText: 'NOT PERSISTED FULL TEXT', order: 1, position: 1200,
+  positionSample: { height: 8000, width: 1500 } };
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 test('backups are opt-in, restore bounded summaries per conversation, and never store full search text', async (t) => {
@@ -24,6 +25,7 @@ test('backups are opt-in, restore bounded summaries per conversation, and never 
   backup.activate(FIRST_CONVERSATION); await tick();
   assert.equal(restored.at(-1)![0]!.key, row.key);
   assert.equal(restored.at(-1)![0]!.searchText, row.tooltip);
+  assert.equal(restored.at(-1)![0]!.positionSample, undefined);
 });
 
 test('clear rotates the backup namespace so an in-flight save cannot resurrect cleared records', async (t) => {

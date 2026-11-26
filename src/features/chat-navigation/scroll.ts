@@ -43,6 +43,7 @@ export function createMessageJumper(window: Window, root: HTMLElement, getHeader
       const container = scrollRoot(target, window);
       const viewportTop = container?.getBoundingClientRect().top ?? 0;
       const line = Math.max(viewportTop, getHeaderBottom()) + 16;
+      if (Math.abs(question.message.getBoundingClientRect().top - line) <= 2) return true;
       if (container && typeof question.message.scrollIntoView === 'function') {
         announceScrollIntent(container, Math.sign(question.message.getBoundingClientRect().top - line));
         question.message.scrollIntoView({ behavior: 'instant', block: 'start', inline: 'nearest' });

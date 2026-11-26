@@ -14,7 +14,8 @@ export function navigationDom(markup = fixture) {
   Object.defineProperty(dom.window, 'innerWidth', { value: 1920, writable: true });
   Object.defineProperty(dom.window, 'innerHeight', { value: 1000, writable: true });
   const scrollArea = document.getElementById('scroll-area')!;
-  Object.defineProperty(scrollArea, 'scrollHeight', { value: 3200 });
+  let scrollHeight = 3200;
+  Object.defineProperty(scrollArea, 'scrollHeight', { get: () => scrollHeight });
   Object.defineProperty(scrollArea, 'clientHeight', { value: 700 });
   const scrolls: ScrollToOptions[] = [];
   scrollArea.scrollTo = ((options: ScrollToOptions) => { scrolls.push(options); scrollArea.scrollTop = options.top ?? 0; }) as typeof scrollArea.scrollTo;
@@ -71,5 +72,6 @@ export function navigationDom(markup = fixture) {
   }
   Object.defineProperty(dom.window, 'ResizeObserver', { value: FakeResize });
   return { dom, document, window: dom.window as unknown as Window, scrollArea, scrolls, windowScrolls,
+    setScrollHeight: (value: number) => { scrollHeight = value; },
     mutations, intersections, resizes, setColumnLeft: (value: number) => { columnLeft = value; } };
 }

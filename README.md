@@ -28,6 +28,8 @@ Wait for both watch builds to finish before reloading. Reload the extension, reo
 
 Developer references: [architecture](docs/architecture.md), [debugging lessons and verification workflow](docs/debugging-workflow.md), and [dated navigation live-verification results](docs/navigation-live-verification.md). Keep automated results and observed live behavior separate when reporting a fix.
 
+The [navigation performance follow-up](docs/navigation-performance-verification.md) records locator optimizations, native-input measurements and remaining loading limits.
+
 ## Using Chat Navigation
 
 1. Reload the unpacked extension, refresh ChatGPT, and enable **Chat Navigation** in the popup (version `0.3.0`).
@@ -48,6 +50,8 @@ Already discovered question summaries stay in page memory after their DOM nodes 
 Each scan is bounded to 240 traversal steps / 60 seconds (plus bounded top settling and reading-position restoration) and 2,000 retained summaries. A stopped/limited scan keeps partial discoveries and can be rerun. Completion means this scan reached the current scrollable extent; it does not prove all server-side history has loaded. The extension only reads user messages rendered by the page and makes no backend/API requests. Unidentifiable recycled nodes, unstable layout coordinates, deleted messages or alternate branches can prevent reliable relocation; old cached summaries may remain until the index is cleared, but are never matched by title or jumped to by an unchecked coordinate.
 
 By default the index/previews remain in page memory. With the separate local-backup toggle enabled, bounded question previews, identifiers and coordinate hints are written to chrome.storage.local. Full extracted search text, assistant responses, search queries and collapse state are not backed up. No conversation content is sent through extension messages, logged or transmitted. Extraction is bounded to 2,048 text code units per visible user message; previews use up to 88 Unicode characters and tooltips up to 360. Search covers the extracted text, not the unbounded original message.
+
+During a seek, questions remain selectable while loading and stability confirmation continue. A new choice cancels the old operation without pulling back to its saved position; only the latest queued choice starts. Manual scrolling or disabling navigation cancels queued choices too. Scans still block question buttons. Target-specific readiness can wake a seek before its timed poll; session-only height/width samples improve some stale-coordinate hints. These samples are not backed up. Exact identity and the full stability check remain required.
 
 ## Optional local question-directory backups
 
