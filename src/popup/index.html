@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,40 +9,42 @@
   <body>
     <main>
       <header>
-        <p class="eyebrow">YOUR CHATGPT, PERSONALIZED</p>
         <h1>ChatGPT Enhanced</h1>
         <p id="version" class="muted"></p>
       </header>
       <fieldset id="features" disabled>
-        <legend>Features</legend>
+        <legend>功能</legend>
         <label class="feature">
-          <span><strong>Project Colors</strong><small>Color highlights for your projects.</small></span>
+          <span><strong>Project Colors</strong><small>为项目设置专属颜色</small></span>
           <input type="checkbox" id="projectColors" aria-describedby="foundation-note" />
         </label>
         <label class="feature">
-          <span><strong>Chat Colors</strong><small>Color highlights for individual chats.</small></span>
+          <span><strong>Chat Colors</strong><small>为单个聊天设置颜色</small></span>
           <input type="checkbox" id="chatColors" aria-describedby="foundation-note" />
         </label>
         <label class="feature">
-          <span><strong>Codex Cloud Colors</strong><small>Color highlights for Codex task and conversation links.</small></span>
+          <span><strong>Codex Cloud Colors</strong><small>为 Codex 对话和任务设置颜色</small></span>
           <input type="checkbox" id="codexCloudColors" aria-describedby="foundation-note" />
         </label>
         <label class="feature">
-          <span><strong>Chat Navigation</strong><small>Search and jump between rendered questions.</small></span>
+          <span><strong>Chat Navigation</strong><small>搜索问题，快速回到对话中的位置</small></span>
           <input type="checkbox" id="chatNavigation" aria-describedby="foundation-note" />
         </label>
       </fieldset>
       <fieldset id="history-backup" disabled>
-        <legend>历史导航备份</legend>
-        <label class="feature"><span><strong>本地备份问题目录</strong><small>仅在本机保存问题预览和标识；最多 8 个会话，每个 300 条。不保存助手回答。</small></span><input type="checkbox" id="navigationBackup" /></label>
+        <legend>本地数据</legend>
+        <label class="feature"><span><strong>本地备份问题目录</strong><small>仅存问题预览与标识，不存助手回答。<br />最多 8 个会话，每个 300 条。</small></span><input type="checkbox" id="navigationBackup" /></label>
         <button type="button" id="clear-navigation-backup">关闭并清除所有目录备份</button>
       </fieldset>
       <p id="backup-status" role="status" aria-live="polite"></p>
-      <p id="foundation-note" class="note">开启颜色功能后，在侧边栏项目、聊天或 Codex 云端任务行直接右键选色，无需按组合键。三点按钮保持原有功能。开启 Chat Navigation 可在会话左侧查看问题导航；空间不足时自动隐藏。</p>
-      <p id="status" role="status" aria-live="polite">Loading preferences…</p>
-      <button type="button" id="check-page">检查当前页</button>
-      <p id="page-status" role="status" aria-live="polite"></p>
-      <footer>问题目录默认仅在页面内存中。启用备份后，问题预览保存在本机，可随时清除。</footer>
+      <p id="foundation-note" class="note">侧边栏右键选色 · 对话左侧查看问题导航</p>
+      <p id="status" role="status" aria-live="polite">正在读取设置…</p>
+      <details>
+        <summary>页面诊断</summary>
+        <button type="button" id="check-page">检查当前页</button>
+        <p id="page-status" role="status" aria-live="polite"></p>
+      </details>
+      <footer>所有设置仅保存在本机，不上传对话内容。</footer>
     </main>
   </body>
 </html>

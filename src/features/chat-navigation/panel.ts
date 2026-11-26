@@ -4,11 +4,12 @@ import type { HistoryState } from './history.ts';
 
 const CSS = `
   :host { all: initial; position: fixed; z-index: 1000; font: 13px/1.5 var(--page-font,ui-sans-serif,system-ui,sans-serif);
-    color: #292929; --surface: #f9f9f9; --hover: #ededed; --selected: #e7e7e7; --muted: #858585; --focus: #737373; }
+    color: #202020; --surface: #fff; --hover: #f3f3f3; --selected: #ebebeb; --border: #e5e5e5; --muted: #737373; --focus: #737373; }
   :host([hidden]) { display: none !important; }
   * { box-sizing: border-box; }
   .panel { display: flex; flex-direction: column; max-height: inherit; width: 100%; padding: 8px;
-    border-radius: 12px; background: var(--surface); overflow: hidden; }
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface); overflow: hidden;
+    box-shadow: 0 4px 16px #00000008; }
   header { display: flex; gap: 8px; align-items: center; padding: 2px 4px 10px 8px; flex: none; }
   h2 { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
   button, input { font: inherit; color: inherit; }
@@ -18,7 +19,7 @@ const CSS = `
   .collapse, .clear { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 6px; color: var(--muted); }
   .collapse { margin-left: auto; }
   .collapse:hover, .clear:hover, .expand:hover { background: var(--hover); color: inherit; }
-  .search { display: flex; align-items: center; flex: none; margin: 0 4px 8px; padding: 0 7px; gap: 6px; border-radius: 8px; color: var(--muted); }
+  .search { display: flex; align-items: center; flex: none; margin: 0 4px 8px; padding: 0 7px; gap: 6px; border-radius: 8px; color: var(--muted); background: var(--hover); }
   .search:focus-within { background: var(--hover); }
   input { min-width: 0; width: 100%; height: 32px; border: 0; border-radius: 5px; background: transparent; padding: 0; font-size: 12px; }
   input::placeholder { color: var(--muted); opacity: 1; }
@@ -29,7 +30,7 @@ const CSS = `
   ol { margin: 0; padding: 0; list-style: none; overflow-y: auto; min-height: 0; flex: 0 1 auto;
     overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #9995 transparent; }
   li + li { margin-top: 2px; }
-  .question { width: 100%; display: flex; text-align: start; padding: 8px 10px; border-radius: 8px; line-height: 20px; transition: background 120ms ease; }
+  .question { width: 100%; display: flex; text-align: start; padding: 8px 10px; border-radius: 10px; line-height: 20px; font-weight: 500; transition: background 120ms ease; }
   .question:hover { background: var(--hover); }
   .question[aria-current="true"] { background: var(--selected); }
   .number { display: none; }
@@ -47,12 +48,12 @@ const CSS = `
   .tick::after { content: ''; width: 6px; height: 2px; border-radius: 1px; background: #d1d1d1; }
   .tick[aria-current="true"]::after { width: 24px; background: #171717; }
   .tick:hover::after, .tick:focus-visible::after { width: 24px; background: #555; }
-  .tooltip { position: absolute; width: var(--preview-width); border: 1px solid #d8d8d8;
-    border-radius: 14px; background: #fff; box-shadow: 0 10px 28px #00000014; pointer-events: auto; }
+  .tooltip { position: absolute; width: var(--preview-width); border: 1px solid var(--border);
+    border-radius: 14px; background: var(--surface); box-shadow: 0 4px 6px -4px #0000001a, 0 12px 28px -8px #00000024; pointer-events: auto; }
   .preview-jump { display: block; width: 100%; padding: 12px 15px; border-radius: 14px; text-align: start; }
-  .tooltip-number { display: block; color: #171717; font-size: 14px; font-weight: 600; line-height: 22px;
+  .tooltip-number { display: block; color: inherit; font-size: 13px; font-weight: 600; line-height: 21px;
     margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tooltip-text { color: #888; font-size: 13px; font-weight: 450; line-height: 21px; display: -webkit-box;
+  .tooltip-text { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 20px; display: -webkit-box;
     -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
   .footer { flex: none; padding: 8px 4px 2px; margin-top: 8px; border-top: 1px solid #8882; }
   .scan-history { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 32px; border-radius: 8px;
@@ -67,13 +68,11 @@ const CSS = `
     border: 1px solid #8882; border-radius: 8px; color: inherit; background: var(--surface);
     box-shadow: 0 4px 16px #00000012; font: inherit; font-size: 12px; line-height: 18px; pointer-events: none; }
   [hidden] { display: none !important; }
-  :host([data-theme="dark"]) { color: #e3e3e3; --surface: #191919; --hover: #252525; --selected: #303030; --muted: #999; --focus: #aaa; }
-  :host([data-theme="dark"]) .tooltip { background: #252525; border-color: #444; box-shadow: 0 10px 28px #0004; }
-  :host([data-theme="dark"]) .tooltip-number { color: #eee; }
-  :host([data-theme="dark"]) .tooltip-text { color: #aaa; }
+  :host([data-theme="dark"]) { color: #ececec; --surface: #2f2f2f; --hover: #3a3a3a; --selected: #424242; --border: #424242; --muted: #aaa; --focus: #aaa; }
   :host([data-theme="dark"]) .tick::after { background: #555; }
   :host([data-theme="dark"]) .tick[aria-current="true"]::after,
   :host([data-theme="dark"]) .tick:hover::after, :host([data-theme="dark"]) .tick:focus-visible::after { background: #d4d4d4; }
+  @supports (corner-shape: squircle) { .panel, .tooltip, .preview-jump, .question, .control-hint { corner-shape: squircle; } }
   @media (prefers-reduced-motion: reduce) { .question { transition: none; } }
 `;
 
