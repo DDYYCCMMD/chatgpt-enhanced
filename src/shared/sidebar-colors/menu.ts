@@ -1,4 +1,4 @@
-import { COLORS, COLOR_RGB } from './palette.ts';
+import { COLORS, COLOR_LABELS, COLOR_RGB } from './palette.ts';
 import type { Color } from './palette.ts';
 
 const MENU_CSS = `
@@ -85,7 +85,7 @@ export function createColorMenu(document: Document, window: Window) {
       const swatch = document.createElement('span');
       swatch.className = 'swatch';
       swatch.setAttribute('aria-hidden', 'true');
-      const label = color ? color[0]!.toUpperCase() + color.slice(1) : 'Reset to default';
+      const label = color ? COLOR_LABELS[color] : 'Reset to default';
       button.append(swatch, document.createTextNode(label));
       button.addEventListener('click', () => {
         for (const item of buttons) item.disabled = true;
