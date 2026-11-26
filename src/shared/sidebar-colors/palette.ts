@@ -2,7 +2,7 @@ export const COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as 
 export type Color = (typeof COLORS)[number];
 export type ColorMap = Record<string, Color>;
 export const COLOR_RGB: Record<Color, string> = {
-  red: '225 75 83', orange: '224 132 39', yellow: '191 155 32',
+  red: '239 51 64', orange: '249 115 22', yellow: '250 204 21',
   green: '43 157 108', blue: '64 133 219', purple: '154 101 214',
 };
 export function isColor(value: unknown): value is Color {

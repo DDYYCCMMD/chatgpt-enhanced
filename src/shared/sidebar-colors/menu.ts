@@ -1,4 +1,4 @@
-import { COLORS } from './palette.ts';
+import { COLORS, COLOR_RGB } from './palette.ts';
 import type { Color } from './palette.ts';
 
 const MENU_CSS = `
@@ -19,12 +19,7 @@ const MENU_CSS = `
   button[data-color="default"] .swatch { box-sizing: border-box; border: 1px solid var(--muted); }
   button[aria-checked="true"]::after { content: '✓'; margin-inline-start: auto; }
   .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; }
-  [data-color="red"] .swatch { background: #e14b53; }
-  [data-color="orange"] .swatch { background: #e08427; }
-  [data-color="yellow"] .swatch { background: #bf9b20; }
-  [data-color="green"] .swatch { background: #2b9d6c; }
-  [data-color="blue"] .swatch { background: #4085db; }
-  [data-color="purple"] .swatch { background: #9a65d6; }
+  ${COLORS.map((color) => `[data-color="${color}"] .swatch { background: rgb(${COLOR_RGB[color]}); }`).join('\n')}
   [role="status"] { margin: 7px; font-size: 12px; }
   :host([data-theme="dark"]) { --surface: #2f2f2f; --hover: #3a3a3a; --border: #424242; --muted: #aaa; --text: #ececec; }
   @supports (corner-shape: squircle) { .menu, button { corner-shape: squircle; } }
