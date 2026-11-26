@@ -1,3 +1,4 @@
+import { discoverCodexCloudTasks } from '../../features/codex-cloud-colors/detection.ts';
 import { MAIN_SELECTOR, MESSAGE_SELECTOR, PROJECT_METADATA_SELECTOR } from './dom.ts';
 
 export const SIDEBAR_SELECTOR = '#stage-sidebar, #stage-slideover-sidebar, #sidebar, #history, [data-sidebar], [data-testid="sidebar"], [data-testid="sidebar-navigation"], [data-testid="sidebar-container"], nav[aria-label="Chat history"]';
@@ -7,9 +8,9 @@ export function findSidebars(document: Document): HTMLElement[] {
   const roots = [...document.querySelectorAll<HTMLElement>(`${SIDEBAR_SELECTOR}, ${SEMANTIC_ROOTS}`)]
     .filter((root) => !root.closest(MESSAGE_SELECTOR))
     .filter((root) => !root.querySelector(MESSAGE_SELECTOR))
-    .filter((root) => root.matches(SIDEBAR_SELECTOR) || (!root.closest(MAIN_SELECTOR) && root.querySelector(
+    .filter((root) => root.matches(SIDEBAR_SELECTOR) || (!root.closest(MAIN_SELECTOR) && (root.querySelector(
       `${PROJECT_METADATA_SELECTOR}, [data-project-url], [data-href], a[href^="/c/"], a[href^="/g/g-p-"], a[href^="https://chatgpt.com/c/"]`,
-    )));
+    ) || discoverCodexCloudTasks(root).length > 0)));
   // Explicitly sidebar-named project metadata can bootstrap an otherwise unlabelled mount.
   for (const marker of document.querySelectorAll<HTMLElement>('[data-sidebar-project-container-id], [data-app-action-sidebar-project-id], [data-sidebar-project-id], [data-sidebar-archive-chatgpt-id]')) {
     if (!marker.closest(MESSAGE_SELECTOR) && !roots.some((root) => root.contains(marker))) roots.push(marker);
@@ -44,7 +45,7 @@ export function watchSidebar(document: Document, window: Window, onRowsChanged: 
       rowsObserver.disconnect();
       for (const root of roots) {
         rowsObserver.observe(root, { subtree: true, childList: true, attributes: true,
-          attributeFilter: ['href', 'data-project-url', 'data-href', 'role', 'tabindex', 'data-testid', 'data-sidebar-project-container-id', 'data-app-action-sidebar-project-id', 'data-app-action-sidebar-project-row', 'data-sidebar-project-id', 'data-project-id', 'data-sidebar-archive-chatgpt-id'] });
+          attributeFilter: ['href', 'data-project-url', 'data-href', 'role', 'tabindex', 'data-testid', 'data-sidebar-project-container-id', 'data-app-action-sidebar-project-id', 'data-app-action-sidebar-project-row', 'data-sidebar-project-id', 'data-project-id', 'data-sidebar-archive-chatgpt-id', 'data-app-action-sidebar-thread-row'] });
       }
     }
     // The same root can move to a different layout without changing its identity.

@@ -9,8 +9,8 @@ import { mockChromeStorage } from './helpers/chrome-storage.ts';
 
 const baseline: PageStatus = {
   protocol: PAGE_STATUS_PROTOCOL, version: '0.2.1', phase: 'ready',
-  settings: { projectColors: false, chatColors: false, chatNavigation: false },
-  roots: 2, projects: 1, chats: 2, projectReady: false, chatReady: false, lastContext: 'none',
+  settings: { projectColors: false, chatColors: false, codexCloudColors: false, chatNavigation: false },
+  roots: 2, projects: 1, chats: 2, codexCloudTasks: 0, projectReady: false, chatReady: false, codexCloudReady: false, lastContext: 'none',
   navigation: { phase: 'disabled', questions: 0, reason: 'none', viewportWidth: 0, gutter: 0 },
 };
 
@@ -18,7 +18,7 @@ test('status validates response shape and explains disabled, missing, and unreco
   assert(isPageStatus(baseline));
   for (const value of [null, {}, { ...baseline, protocol: 99 }, { ...baseline, roots: -1 },
     { ...baseline, settings: {} }, { ...baseline, lastContext: 'secret text' }]) assert.equal(isPageStatus(value), false);
-  assert.match(describePageStatus(baseline, '0.2.1'), /两个颜色开关均关闭/);
+  assert.match(describePageStatus(baseline, '0.2.1'), /颜色开关均关闭/);
   assert.match(describePageStatus({ ...baseline, settings: { ...baseline.settings, chatColors: true }, roots: 0, lastContext: 'unrecognized' }, '0.2.1'), /未发现侧边栏/);
   assert.match(describePageStatus({ ...baseline, lastContext: 'chat' }, '0.2.1'), /已接管聊天菜单/);
 });

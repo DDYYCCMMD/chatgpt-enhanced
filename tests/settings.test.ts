@@ -40,24 +40,24 @@ beforeEach(() => {
 });
 
 test('missing or malformed settings use safe boolean defaults', async () => {
-  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: false, chatNavigation: false });
+  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: false, codexCloudColors: false, chatNavigation: false });
   stored = { 'settings.v1.projectColors': 'true', 'settings.v1.chatNavigation': true };
-  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: false, chatNavigation: true });
+  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: false, codexCloudColors: false, chatNavigation: true });
 });
 
 test('independent concurrent toggle writes persist across reads', async () => {
   await Promise.all([setFeatureEnabled('projectColors', true), setFeatureEnabled('chatNavigation', true)]);
-  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: true, chatNavigation: true });
+  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: true, codexCloudColors: false, chatNavigation: true });
   await setFeatureEnabled('projectColors', false);
-  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: false, chatNavigation: true });
+  assert.deepEqual(await getSettings(), { chatColors: false, projectColors: false, codexCloudColors: false, chatNavigation: true });
 });
 
 test('new Chat Colors toggle persists independently while old V0.2 values stay intact', async () => {
   stored = { 'settings.v1.projectColors': true, 'settings.v1.chatNavigation': false };
   await setFeatureEnabled('chatColors', true);
-  assert.deepEqual(await getSettings(), { projectColors: true, chatColors: true, chatNavigation: false });
+  assert.deepEqual(await getSettings(), { projectColors: true, chatColors: true, codexCloudColors: false, chatNavigation: false });
   await setFeatureEnabled('projectColors', false);
-  assert.deepEqual(await getSettings(), { projectColors: false, chatColors: true, chatNavigation: false });
+  assert.deepEqual(await getSettings(), { projectColors: false, chatColors: true, codexCloudColors: false, chatNavigation: false });
 });
 
 test('observers merge changes during the initial read and handle deletion', async () => {
@@ -68,11 +68,11 @@ test('observers merge changes during the initial read and handle deletion', asyn
   emit({ 'settings.v1.projectColors': { newValue: true } });
   resolveRead({ 'settings.v1.projectColors': false, 'settings.v1.chatNavigation': true });
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.deepEqual(snapshots, [{ chatColors: false, projectColors: true, chatNavigation: true }]);
+  assert.deepEqual(snapshots, [{ chatColors: false, projectColors: true, codexCloudColors: false, chatNavigation: true }]);
   emit({ 'settings.v1.projectColors': { newValue: false } }, 'sync');
   assert.equal(snapshots.length, 1);
   emit({ 'settings.v1.projectColors': { oldValue: true } });
-  assert.deepEqual(snapshots.at(-1), { chatColors: false, projectColors: false, chatNavigation: true });
+  assert.deepEqual(snapshots.at(-1), { chatColors: false, projectColors: false, codexCloudColors: false, chatNavigation: true });
   stop();
   assert.equal(listeners.size, 0);
 });
