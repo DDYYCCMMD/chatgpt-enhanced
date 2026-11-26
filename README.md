@@ -2,7 +2,7 @@
 
 A modular Chrome extension (Manifest V3) for `https://chatgpt.com/*`.
 
-V0.3 adds **Chat Navigation**: a searchable, collapsible list of user questions discovered in the active conversation, with manual history scanning, page-memory retention, instant jumps and best-effort active-question tracking. **Project Colors** and **Chat Colors** retain direct sidebar right-click selection, six preset colors, reset, local persistence, and independent toggles. All three features default to off; existing V0.1/V0.2 settings are preserved.
+V0.3.1 stabilizes **Chat Navigation**: a searchable, collapsible list of user questions discovered in the active conversation, with manual history scanning, page-memory retention, instant mounted-target jumps and best-effort active-question tracking. **Project Colors** and **Chat Colors** retain direct sidebar right-click selection, six preset colors, reset, local persistence, and independent toggles. All three features default to off; existing V0.1/V0.2 settings are preserved.
 
 Navigation starts as a frameless rail of small gray ticks, with a darker tick for the current question. Hover or keyboard-focus a tick for a bounded preview; click to jump. Hover/focus the rail to reveal the list button at its top. The expanded list uses a compact history-style layout with search, single-line previews, neutral selection, icon controls, and matching light/dark themes. Navigation inherits the active page font family; icon controls use styled hints instead of browser-native titles. Short lists shrink to their content; long lists/rails scroll within the available space.
 
@@ -28,11 +28,11 @@ Wait for both watch builds to finish before reloading. Reload the extension, reo
 
 Developer references: [architecture](docs/architecture.md), [debugging lessons and verification workflow](docs/debugging-workflow.md), and [dated navigation live-verification results](docs/navigation-live-verification.md). Keep automated results and observed live behavior separate when reporting a fix.
 
-The [navigation performance follow-up](docs/navigation-performance-verification.md) records locator optimizations, native-input measurements and remaining loading limits.
+The [navigation performance follow-up](docs/navigation-performance-verification.md) records locator optimizations, native-input measurements and remaining loading limits. See the [V0.3.1 release notes](docs/release-0.3.1.md) and [manual acceptance matrix](docs/navigation-acceptance.md) for this patch and outstanding checks.
 
 ## Using Chat Navigation
 
-1. Reload the unpacked extension, refresh ChatGPT, and enable **Chat Navigation** in the popup (version `0.3.0`).
+1. Reload the unpacked extension, refresh ChatGPT, and enable **Chat Navigation** in the popup (version `0.3.1`).
 2. Open an existing conversation at a `/c/<conversation-id>` URL, including Project/custom-GPT nested conversation routes. New-chat pages stay idle until ChatGPT assigns a conversation URL.
 3. When enough space exists, the tick rail appears in the empty gutter to the left of the message column, beyond the native sidebar. Hover/focus for a preview; Escape or leaving/blur dismisses it. Click a tick to scroll its original user turn below the header. Duplicate question text remains separate when the messages have different IDs or DOM references.
 4. Hover or keyboard-focus the rail to reveal **展开问题导航** at the top, then click it for the full list. Use **搜索问题** to filter case-insensitively; the × icon clears the search. Tooltips show a bounded longer preview. Newlines/code are normalized; image/attachment-only and blank messages have generic fallback labels. Text is inserted as text, not HTML.
@@ -115,13 +115,13 @@ If Chrome blocks pasting, you can instead read the selected element and its ance
 
 The Console's “Don't paste code…” message is Chrome's [self-XSS protection](https://developer.chrome.com/blog/self-xss); it is not evidence that the snippet ran. An inline-script CSP violation is a separate blocked execution and needs its source link/stack to attribute. This extension and the diagnostic do not inject script tags, use inline event-handler attributes, or change CSP. Do not disable CSP for this extension. See [Chrome content-script isolation](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) and [script-src documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src).
 
-To check registration without console code, open DevTools **Sources → Content scripts → ChatGPT Enhanced**, and verify `content.js` appears. Also inspect errors on the extension card at `chrome://extensions`. In the popup, verify version `0.3.0` and that the relevant feature toggle is on.
+To check registration without console code, open DevTools **Sources → Content scripts → ChatGPT Enhanced**, and verify `content.js` appears. Also inspect errors on the extension card at `chrome://extensions`. In the popup, verify version `0.3.1` and that the relevant feature toggle is on.
 
 ## Manual Chrome testing
 
 Use ordinary secondary click for all color-menu tests below: on a Mac trackpad, use a two-finger secondary click; with a mouse, use its right button. No Option, Shift, or other modifier is required. Reload the extension and refresh ChatGPT after updating so an older modifier-based script is not left running. Verify that native three-dot controls and unrelated page areas keep their existing menus.
 
-1. Build, reload the unpacked extension, and refresh ChatGPT. Verify popup version `0.3.0`, three independent toggles, and retained V0.2 settings.
+1. Build, reload the unpacked extension, and refresh ChatGPT. Verify popup version `0.3.1`, three independent toggles, and retained V0.2 settings.
 2. Enable Project Colors alone. Right-click actual project label text, its header button, and surrounding row padding. Test all six colors and Reset. Try duplicate Project names and renaming; colors must follow IDs. Confirm three-dot controls and ordinary chats keep native behavior.
 3. Disable Project Colors, enable Chat Colors. Color two ordinary chats with the same title differently. Color a rendered conversation nested in a Project; the conversation ID must keep its color when rendered as a normal history entry. Confirm Project headers keep native behavior.
 4. Enable both. Alternate between Project and Chat menus; only one menu should be present. Reset one item and verify all others remain colored. Test cross-tab changes, including reset.
@@ -134,7 +134,7 @@ Live signed-in verification of a 17-question conversation, with remaining limits
 
 ## Manual Chat Navigation checklist
 
-1. Verify `0.3.0` in the popup and enable Chat Navigation on a long signed-in conversation with a wide viewport. Confirm a frameless tick rail appears between the native sidebar and message column and above the composer. Hover/focus ticks to preview; test Escape and pointer-leave dismissal. Expand using the top button; neither list nor previews should cover sidebar, messages or composer.
+1. Verify `0.3.1` in the popup and enable Chat Navigation on a long signed-in conversation with a wide viewport. Confirm a frameless tick rail appears between the native sidebar and message column and above the composer. Hover/focus ticks to preview; test Escape and pointer-leave dismissal. Expand using the top button; the rail/list should stay in the gutter without covering sidebar, messages or composer. Tick previews may temporarily overlay messages within the viewport while hovered.
 2. Compare list order with rendered user turns, including two identical prompts. Confirm assistant answers, hidden templates, unsent composer text, and other conversations do not appear.
 3. Test multiline/code prompts, long Unicode text, image/attachment-only messages, and edited prompts. Confirm readable previews, generic attachment labels, and bounded tooltips.
 4. Search with different letter cases, clear the search, and verify original order/numbers. Test a query with angle brackets; no HTML should execute.
@@ -154,7 +154,7 @@ If the panel is absent on a wide window, first ensure a conversation URL and mou
 
 ## Compatibility and unverified behaviors
 
-The user confirmed that navigation appeared after adding bubble-marker detection. **These recycling/layout fixes and local backups still need signed-in ChatGPT verification.** Local headless Chrome previews, automated virtualized-history fixtures and compiled-bundle tests do not establish all current real-site layouts, native focus/CSP behavior, real relocation/IntersectionObserver timing, mobile layouts, or persistence after an actual Chrome restart. Run the manual checklist above in signed-in Chrome.
+The 2026-11-26 signed-in Chrome records cover one 17-question conversation: earliest/middle/latest relocation, rapid selection, scan/explicit-stop reading-position restoration, and directory restoration after refresh. Some successful targets were checked again after 2s and 8s. These observations belong to the recorded V0.3.0 baseline, not a new live test of V0.3.1. Other accounts, Project/custom-GPT conversations, streaming, edited branches, slow networks, window layouts and actual Chrome-restart persistence still need broader live verification. Local headless previews and automated fixtures do not establish those results. Use the [acceptance matrix](docs/navigation-acceptance.md); cold history may take seconds, bounded scans may miss server-side history, and deleted/edited targets or timeouts may fail safely. No controlled evidence establishes a universal speedup percentage.
 
 Detection uses exact canonical IDs, never titles. Supported Project routes include `/g/g-p-<32-hex-or-UUID>[-slug]` with optional `/project`, and `/project(s)/g-p-<id>`. Explicit project metadata may use canonical `g-p-` IDs or bare stable IDs, normalized to `g-p-…`. Chat routes use `/c/<stable-id>` or `/g/<stable-gizmo-id>[-slug]/c/<stable-id>`; arbitrary title-like segments are rejected. Unsupported formats fail closed.
 
@@ -178,7 +178,7 @@ tests/                          Storage/DOM regression fixtures and diagnostics 
 docs/                           Architecture and safe diagnosis
 ```
 
-Only `storage` permission is requested. No backend, telemetry, OpenAI API, external assets, runtime network requests, or application-internal APIs/state access are added. Stored data consists of booleans, stable item IDs, and six preset color names; no titles or message bodies. Sidebar Colors reads navigation attributes and adds namespaced row attributes and owned style/menu nodes. When enabled, Chat Navigation additionally reads only visible user-message text in the active rendered conversation and builds an ephemeral Shadow DOM panel. It never reads assistant bodies, persists conversation content, requests backend history, or changes underlying Project/conversation data.
+Only `storage` permission is requested. No backend, telemetry, OpenAI API, external assets, runtime network requests, or application-internal APIs/state access are added. Default persistent data consists of feature booleans, stable item IDs and preset color names. With the separate, off-by-default local directory backup enabled, bounded user-question previews, identifiers and position hints are also saved to `chrome.storage.local` (up to eight conversations, 300 entries each). This is a question directory, not a full conversation backup; session layout samples are never persisted. Sidebar Colors reads navigation attributes and adds namespaced row attributes and owned style/menu nodes. When enabled, Chat Navigation additionally reads only visible user-message text in the active rendered conversation and builds an ephemeral Shadow DOM panel. It never reads assistant bodies, saves full transcripts, requests backend history, or changes underlying Project/conversation data. With backups off, question summaries remain in page memory. Disabling backup stops reads/writes but keeps existing records; the separate clear action disables backup and removes those records.
 
 See [architecture](docs/architecture.md), [Vite build documentation](https://vite.dev/guide/build.html), and [Chrome storage API documentation](https://developer.chrome.com/docs/extensions/reference/api/storage).
 
@@ -186,4 +186,4 @@ Chat Navigation currently recognizes a single visible conversation main, preferr
 
 The positioning adapter measures bounded-width ancestors/known thread utility classes and falls back conservatively to turn bounds. Unknown column layouts, RTL variants, unusual fixed headers, or compact/sidebar-heavy windows may hide the panel. Active tracking is best-effort for the mounted user turns; it is unavailable without IntersectionObserver. All of these real-site behaviors remain part of manual verification.
 
-If a history click returns to the start, the history icon remains visible: hover it or expand the list to read the failure status. Counts distinguish mounted messages, identity candidates and preview matches without exposing message text or identifiers. Regression cases cover identity promotion, shifted coordinate estimates, delayed remounts, live keyed placeholders and conflicting message IDs. Signed-in live behavior is still unverified.
+If a history click returns to the start, the history icon remains visible: hover it or expand the list to read the failure status. Counts distinguish mounted messages, identity candidates and preview matches without exposing message text or identifiers. Regression cases cover identity promotion, shifted coordinate estimates, delayed remounts, live keyed placeholders and conflicting message IDs. The dated live records cover one conversation; V0.3.1 and other scenarios require the acceptance checks linked above.

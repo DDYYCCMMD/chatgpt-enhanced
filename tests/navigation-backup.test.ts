@@ -65,3 +65,59 @@ test('backup eviction bounds the number of conversations while keeping the newes
   assert.equal(keys.length, 8);
   assert(keys.some((key) => key.endsWith('conversation-9')));
 });
+
+test('a delayed restore cannot be overwritten by a partial live directory before merging', async (t) => {
+  const s = navigationDom();
+  const key = `navigation.backup.v1.0.${FIRST_CONVERSATION}`;
+  const saved = { version: 1, updated: 1, entries: [row] };
+  const storage = mockChromeStorage({ [NAVIGATION_BACKUP_SETTING]: true, [key]: saved });
+  const read = storage.state.read;
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  storage.state.read = async (keys) => {
+    const result = await read(keys);
+    if (keys === key) await pending;
+    return result;
+  };
+  let entries = [{ ...row, key: 'message:id:live-tail' }];
+  const backup = createNavigationBackup(s.window, {
+    entries: () => entries,
+    restore: (restored) => { entries = [...restored, ...entries]; },
+    error: () => assert.fail('Storage failed'),
+  });
+  t.after(() => { release(); backup.dispose(); s.dom.window.close(); });
+  backup.activate(FIRST_CONVERSATION); await tick();
+  // Models the debounce firing or a route-change flush during a slow read.
+  backup.schedule(); backup.flush(); await backup.settled();
+  assert.equal(storage.state.writes, 0);
+  assert.deepEqual(storage.values[key], saved);
+  release(); await tick(); backup.flush(); await backup.settled();
+  assert.deepEqual(validateNavigationBackup(storage.values[key]).map((entry) => entry.key), [row.key, 'message:id:live-tail']);
+});
+
+for (const action of ['route', 'disable', 'dispose'] as const) {
+  test(`a late backup read is ignored after ${action}`, async (t) => {
+    const s = navigationDom();
+    const key = `navigation.backup.v1.0.${FIRST_CONVERSATION}`;
+    const storage = mockChromeStorage({ [NAVIGATION_BACKUP_SETTING]: true,
+      [key]: { version: 1, updated: 1, entries: [row] } });
+    const read = storage.state.read;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    storage.state.read = async (keys) => {
+      const result = await read(keys);
+      if (keys === key) await pending;
+      return result;
+    };
+    const restored: IndexedQuestion[][] = [];
+    const backup = createNavigationBackup(s.window, { entries: () => [], restore: (rows) => restored.push(rows), error: () => assert.fail('Storage failed') });
+    t.after(() => { release(); backup.dispose(); s.dom.window.close(); });
+    backup.activate(FIRST_CONVERSATION); await tick();
+    if (action === 'route') backup.activate(SECOND_CONVERSATION);
+    else if (action === 'disable') await setNavigationBackupEnabled(false);
+    else backup.dispose();
+    await tick(); release(); await tick();
+    assert.equal(restored.flat().length, 0);
+    if (action === 'dispose') assert.equal(storage.listeners.size, 0);
+  });
+}
