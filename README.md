@@ -2,7 +2,7 @@
 
 A modular Chrome extension (Manifest V3) for `https://chatgpt.com/*`.
 
-V0.3.1 stabilizes **Chat Navigation**: a searchable, collapsible list of user questions discovered in the active conversation, with manual history scanning, page-memory retention, instant mounted-target jumps and best-effort active-question tracking. **Project Colors** and **Chat Colors** retain direct sidebar right-click selection, six preset colors, reset, local persistence, and independent toggles. All three features default to off; existing V0.1/V0.2 settings are preserved.
+V0.3.1 stabilizes **Chat Navigation**: a searchable, collapsible list of user questions discovered in the active conversation, with manual history scanning, page-memory retention, instant mounted-target jumps and best-effort active-question tracking. **Project Colors** and **Chat Colors** retain direct sidebar right-click selection, six preset colors, reset, local persistence, and independent toggles. All features default to off; existing V0.1/V0.2 settings are preserved.
 
 Navigation starts as a frameless rail of small gray ticks, with a darker tick for the current question. Hover or keyboard-focus a tick for a bounded preview; click to jump. Hover/focus the rail to reveal the list button at its top. The expanded list uses a compact history-style layout with search, single-line previews, neutral selection, icon controls, and matching light/dark themes. Navigation inherits the active page font family; icon controls use styled hints instead of browser-native titles. Short lists shrink to their content; long lists/rails scroll within the available space.
 
@@ -68,7 +68,13 @@ Up to eight conversations and the first 300 valid entries per conversation are b
 
 Direct right-click opens the color menu on a reliably identified Project/Chat whose color feature is enabled. No modifier key is required. Native three-dot controls, unrecognized items, disabled features, and other page areas keep their original behavior. Click outside or press Escape to dismiss. Keyboard context-menu opening depends on Chrome and the native row; inside the menu, arrows/Home/End navigate and Enter/Space selects. Tab closes it. The menu fits or scrolls inside the viewport and closes on page scrolling, resize, or window blur. A failed save rolls back the highlight and displays a retry message.
 
-Sidebar Colors does not handle host left-click events, so normal sidebar navigation stays native. Chat Navigation handles only its own panel controls. Nested three-dot/menu controls and unrecognized items keep native context behavior. There is one shared context listener, one menu, and one sidebar watcher even when both color features are enabled.
+Sidebar Colors does not handle host left-click events, so normal sidebar navigation stays native. Chat Navigation handles only its own panel controls. Nested three-dot/menu controls and unrecognized items keep native context behavior. There is one shared context listener, one menu, and one sidebar watcher across the color features.
+
+## Use Codex Cloud Colors
+
+Enable **Codex Cloud Colors** in the extension popup, then right-click a Codex cloud task in the `chatgpt.com` sidebar. Choose one of six colors or **Reset to default**. The extension stores colors on this device by task ID, so renaming the task keeps its color. This toggle is independent of Project Colors and Chat Colors.
+
+The adapter recognizes task links under `/codex/cloud/tasks/` and `/codex/tasks/` with a stable task ID. **检查当前页** shows how many tasks were recognized. If a cloud row shows the native menu with the toggle enabled, share its redacted link path and row attributes so its layout can be identified. Signed-in compatibility remains to be verified.
 
 ## V0.2 failure diagnosis
 
@@ -121,7 +127,7 @@ To check registration without console code, open DevTools **Sources → Content 
 
 Use ordinary secondary click for all color-menu tests below: on a Mac trackpad, use a two-finger secondary click; with a mouse, use its right button. No Option, Shift, or other modifier is required. Reload the extension and refresh ChatGPT after updating so an older modifier-based script is not left running. Verify that native three-dot controls and unrelated page areas keep their existing menus.
 
-1. Build, reload the unpacked extension, and refresh ChatGPT. Verify popup version `0.3.1`, three independent toggles, and retained V0.2 settings.
+1. Build, reload the unpacked extension, and refresh ChatGPT. Verify popup version `0.3.1`, four independent toggles, and retained V0.2 settings.
 2. Enable Project Colors alone. Right-click actual project label text, its header button, and surrounding row padding. Test all six colors and Reset. Try duplicate Project names and renaming; colors must follow IDs. Confirm three-dot controls and ordinary chats keep native behavior.
 3. Disable Project Colors, enable Chat Colors. Color two ordinary chats with the same title differently. Color a rendered conversation nested in a Project; the conversation ID must keep its color when rendered as a normal history entry. Confirm Project headers keep native behavior.
 4. Enable both. Alternate between Project and Chat menus; only one menu should be present. Reset one item and verify all others remain colored. Test cross-tab changes, including reset.

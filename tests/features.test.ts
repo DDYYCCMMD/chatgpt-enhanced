@@ -8,10 +8,10 @@ test('features enable independently, avoid duplicate setup, and clean up on disa
     { id: 'projectColors', enable: () => { events.push('colors:start'); return () => { events.push('colors:stop'); }; } },
     { id: 'chatNavigation', enable: () => { events.push('navigation:start'); return () => { events.push('navigation:stop'); }; } },
   ]);
-  controller.apply({ chatColors: false, projectColors: true, chatNavigation: false });
-  controller.apply({ chatColors: false, projectColors: true, chatNavigation: false });
-  controller.apply({ chatColors: false, projectColors: true, chatNavigation: true });
-  controller.apply({ chatColors: false, projectColors: false, chatNavigation: true });
+  controller.apply({ chatColors: false, projectColors: true, codexCloudColors: false, chatNavigation: false });
+  controller.apply({ chatColors: false, projectColors: true, codexCloudColors: false, chatNavigation: false });
+  controller.apply({ chatColors: false, projectColors: true, codexCloudColors: false, chatNavigation: true });
+  controller.apply({ chatColors: false, projectColors: false, codexCloudColors: false, chatNavigation: true });
   assert.deepEqual(events, ['colors:start', 'navigation:start', 'colors:stop']);
   controller.dispose();
   controller.dispose();

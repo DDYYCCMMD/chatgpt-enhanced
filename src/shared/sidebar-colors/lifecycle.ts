@@ -24,7 +24,13 @@ interface State {
   dispose: () => void;
 }
 
-// One delegation listener, menu, and sidebar watcher per document, shared by both features.
+const MENU_LABEL: Record<ColorKind, string> = {
+  project: 'Project color',
+  chat: 'Chat color',
+  'codex-cloud': 'Codex Cloud color',
+};
+
+// One delegation listener, menu, and sidebar watcher per document.
 const hosts = new WeakMap<Document, ReturnType<typeof createHost>>();
 
 function createHost(document: Document, window: Window) {
@@ -66,7 +72,7 @@ function createHost(document: Document, window: Window) {
     const bounds = row.element.getBoundingClientRect();
     menuOwner = state;
     menu.open({
-      anchor: row.element, label: state.adapter.kind === 'project' ? 'Project color' : 'Chat color',
+      anchor: row.element, label: MENU_LABEL[state.adapter.kind],
       x: keyboard ? bounds.left : event.clientX, y: keyboard ? bounds.bottom : event.clientY,
       selected: state.colors[row.id],
       onSelect: async (color) => {
@@ -133,12 +139,13 @@ function createHost(document: Document, window: Window) {
   return { register, status: () => ({
     projectReady: states.get('project')?.ready ?? false,
     chatReady: states.get('chat')?.ready ?? false,
+    codexCloudReady: states.get('codex-cloud')?.ready ?? false,
     lastContext,
   }) };
 }
 
 export function sidebarColorStatus(document: Document) {
-  return hosts.get(document)?.status() ?? { projectReady: false, chatReady: false, lastContext: 'none' as const };
+  return hosts.get(document)?.status() ?? { projectReady: false, chatReady: false, codexCloudReady: false, lastContext: 'none' as const };
 }
 
 export function enableSidebarColors(document: Document, window: Window, adapter: Adapter): () => void {

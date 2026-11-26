@@ -418,16 +418,16 @@ test('feature controller keeps real Sidebar Colors independent through navigatio
     { id: 'chatNavigation', enable: () => enableChatNavigation(s.document, s.window) },
   ]);
   t.after(() => controller.dispose());
-  controller.apply({ projectColors: true, chatColors: true, chatNavigation: true });
-  controller.apply({ projectColors: true, chatColors: true, chatNavigation: true });
+  controller.apply({ projectColors: true, chatColors: true, codexCloudColors: false, chatNavigation: true });
+  controller.apply({ projectColors: true, chatColors: true, codexCloudColors: false, chatNavigation: true });
   await settleNavigation();
   assert.equal(s.document.querySelectorAll('[data-cge-question-navigation]').length, 1);
-  controller.apply({ projectColors: true, chatColors: true, chatNavigation: false });
+  controller.apply({ projectColors: true, chatColors: true, codexCloudColors: false, chatNavigation: false });
   assert.equal(s.document.querySelector('[data-cge-question-navigation]'), null);
   assert.equal(s.document.getElementById('sidebar-project')!.getAttribute('data-cge-project-color'), 'red');
   assert.equal(s.document.getElementById('sidebar-chat')!.getAttribute('data-cge-chat-color'), 'blue');
   assert.equal(storage.listeners.size, 2);
-  controller.apply({ projectColors: false, chatColors: false, chatNavigation: true }); await settleNavigation();
+  controller.apply({ projectColors: false, chatColors: false, codexCloudColors: false, chatNavigation: true }); await settleNavigation();
   assert.equal(s.document.querySelectorAll('[data-cge-question-navigation]').length, 1);
   assert.equal(s.document.querySelector('[data-cge-project-color]'), null);
   assert.equal(storage.listeners.size, 1); // Navigation's independent opt-in backup preference observer.

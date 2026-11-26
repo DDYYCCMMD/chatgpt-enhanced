@@ -209,14 +209,14 @@ test('disabling fully cleans resources, preserves preferences, and re-enabling r
     { id: 'chatNavigation', enable: () => { navigationStarts++; return () => { navigationStops++; }; } },
   ]);
   t.after(() => controller.dispose());
-  controller.apply({ chatColors: false, projectColors: true, chatNavigation: true });
+  controller.apply({ chatColors: false, projectColors: true, codexCloudColors: false, chatNavigation: true });
   await tick();
   assert.equal(s.node('project-a').getAttribute(COLOR_ATTRIBUTE), 'yellow');
-  controller.apply({ chatColors: false, projectColors: false, chatNavigation: true });
+  controller.apply({ chatColors: false, projectColors: false, codexCloudColors: false, chatNavigation: true });
   assert.equal(s.node('project-a').hasAttribute(COLOR_ATTRIBUTE), false);
   assert.equal(navigationStarts, 1);
   assert.equal(navigationStops, 0);
-  controller.apply({ chatColors: false, projectColors: true, chatNavigation: true });
+  controller.apply({ chatColors: false, projectColors: true, codexCloudColors: false, chatNavigation: true });
   await tick();
   assert.equal(s.node('project-a').getAttribute(COLOR_ATTRIBUTE), 'yellow');
   assert.equal(s.storage.listeners.size, 1);

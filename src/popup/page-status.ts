@@ -31,13 +31,15 @@ export function describePageStatus(status: PageStatus, popupVersion: string): st
   else if (status.phase === 'loading') lines.push('页面设置仍在加载，请稍后重试。');
   lines.push(`Project Colors：${status.settings.projectColors ? status.projectReady ? '已开启' : '正在加载/读取失败' : '关闭'}`);
   lines.push(`Chat Colors：${status.settings.chatColors ? status.chatReady ? '已开启' : '正在加载/读取失败' : '关闭'}`);
+  lines.push(`Codex Cloud Colors：${status.settings.codexCloudColors ? status.codexCloudReady ? '已开启' : '正在加载/读取失败' : '关闭'}`);
   lines.push(describeNavigation(status.navigation));
-  lines.push(`识别到 ${status.projects} 个项目、${status.chats} 个聊天（${status.roots} 个侧边栏区域）。`);
-  if (!status.settings.projectColors && !status.settings.chatColors) lines.push('两个颜色开关均关闭，右键会保留浏览器菜单。');
+  lines.push(`识别到 ${status.projects} 个项目、${status.chats} 个聊天、${status.codexCloudTasks} 个 Codex 云端任务（${status.roots} 个侧边栏区域）。`);
+  if (!status.settings.projectColors && !status.settings.chatColors && !status.settings.codexCloudColors) lines.push('颜色开关均关闭，右键会保留浏览器菜单。');
   else if (!status.roots) lines.push('未发现侧边栏，请展开 ChatGPT 侧边栏再检查。');
   const last = {
-    none: '尚未收到右键；请在侧边栏项目或聊天行直接右键后再点检查。',
+    none: '尚未收到右键；请在侧边栏条目上直接右键后再点检查。',
     project: '最近右键：已接管项目菜单。', chat: '最近右键：已接管聊天菜单。',
+    'codex-cloud': '最近右键：已接管 Codex 云端任务菜单。',
     unrecognized: '最近右键：未识别目标，保留原生菜单。',
     'not-ready': '最近右键：颜色设置尚未读取成功。', ambiguous: '最近右键：身份冲突，保留原生菜单。',
   };
