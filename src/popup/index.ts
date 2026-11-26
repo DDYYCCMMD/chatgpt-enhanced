@@ -10,7 +10,7 @@ function element<T extends HTMLElement>(id: string): T {
   return result as T;
 }
 
-element('version').textContent = `Version ${chrome.runtime.getManifest().version}`;
+element('version').textContent = `v${chrome.runtime.getManifest().version}`;
 const fieldset = element<HTMLFieldSetElement>('features');
 const status = element('status');
 const inputs = Object.fromEntries(
@@ -20,10 +20,10 @@ const inputs = Object.fromEntries(
 const unsubscribe = observeSettings((settings) => {
   for (const id of FEATURE_IDS) inputs[id].checked = settings[id];
   fieldset.disabled = false;
-  status.textContent = 'Preferences are saved automatically.';
+  status.textContent = '设置自动保存';
 }, () => {
   fieldset.disabled = true;
-  status.textContent = 'Could not load preferences. Reopen the popup to retry.';
+  status.textContent = '无法读取设置，请重新打开弹窗。';
 });
 
 for (const id of FEATURE_IDS) {
@@ -31,13 +31,13 @@ for (const id of FEATURE_IDS) {
   input.addEventListener('change', () => {
     const enabled = input.checked;
     input.disabled = true;
-    status.textContent = 'Saving…';
+    status.textContent = '正在保存…';
     void setFeatureEnabled(id, enabled).then(() => {
-      status.textContent = `${FEATURE_LABELS[id]} preference saved.`;
+        status.textContent = `${FEATURE_LABELS[id]} 设置已保存`;
       pageStatus.textContent = '设置已保存，请点击“检查当前页”查看更新后的页面状态。';
     }).catch(() => {
       input.checked = !enabled;
-      status.textContent = 'Could not save preference. Please try again.';
+      status.textContent = '设置保存失败，请重试。';
     }).finally(() => {
       input.disabled = false;
     });

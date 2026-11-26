@@ -2,16 +2,21 @@ import { COLORS } from './palette.ts';
 import type { Color } from './palette.ts';
 
 const MENU_CSS = `
-  :host { all: initial; color-scheme: light dark; font: 13px/1.4 system-ui, sans-serif; }
+  :host { all: initial; color-scheme: light dark; font: 13px/1.5 var(--page-font, ui-sans-serif, system-ui, sans-serif);
+    --surface: #fff; --hover: #f3f3f3; --border: #e5e5e5; --muted: #737373; --text: #202020; }
   .menu { box-sizing: border-box; position: fixed; z-index: 2147483647; width: 208px;
     max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto;
-    padding: 7px; border: 1px solid #d5ddd9; border-radius: 12px; background: #fff;
-    color: #202c2a; box-shadow: 0 10px 40px #0003; }
-  h2 { margin: 5px 8px 8px; font-size: 12px; font-weight: 600; }
+    padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    color: var(--text); box-shadow: 0 4px 6px -4px #0000001a, 0 12px 28px -8px #00000024; }
+  h2 { margin: 6px 10px 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
   button { box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 7px 9px; border: 0; border-radius: 6px; color: inherit; background: transparent;
-    text-align: start; font: inherit; cursor: pointer; }
-  button:hover, button:focus-visible { background: #eef3f0; outline: 2px solid #739c88; outline-offset: -2px; }
+    padding: 7px 10px; border: 0; border-radius: 8px; color: inherit; background: transparent;
+    text-align: start; font: inherit; font-weight: 500; cursor: pointer; }
+  button:hover, button[aria-checked="true"] { background: var(--hover); }
+  button:focus-visible { outline: 2px solid var(--muted); outline-offset: -2px; }
+  button[data-color="default"] { margin-top: 10px; position: relative; }
+  button[data-color="default"]::before { content: ''; position: absolute; top: -5px; inset-inline: 8px; height: 1px; background: var(--border); }
+  button[data-color="default"] .swatch { box-sizing: border-box; border: 1px solid var(--muted); }
   button[aria-checked="true"]::after { content: '✓'; margin-inline-start: auto; }
   .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; }
   [data-color="red"] .swatch { background: #e14b53; }
@@ -21,8 +26,8 @@ const MENU_CSS = `
   [data-color="blue"] .swatch { background: #4085db; }
   [data-color="purple"] .swatch { background: #9a65d6; }
   [role="status"] { margin: 7px; font-size: 12px; }
-  :host([data-theme="dark"]) .menu { color: #edf3ef; background: #242a27; border-color: #4c5850; }
-  :host([data-theme="dark"]) button:hover, :host([data-theme="dark"]) button:focus-visible { background: #36433b; }
+  :host([data-theme="dark"]) { --surface: #2f2f2f; --hover: #3a3a3a; --border: #424242; --muted: #aaa; --text: #ececec; }
+  @supports (corner-shape: squircle) { .menu, button { corner-shape: squircle; } }
 `;
 
 export interface MenuOptions {
@@ -55,6 +60,8 @@ export function createColorMenu(document: Document, window: Window) {
     host.setAttribute('data-cge-color-menu', '');
     // A fixed host escapes native sidebar clipping and establishes a stacking context.
     host.style.cssText = 'position:fixed;inset:0 auto auto 0;z-index:2147483647;';
+    const font = window.getComputedStyle(document.body).fontFamily;
+    if (font) host.style.setProperty('--page-font', font);
     const dark = document.documentElement.matches('.dark, [data-theme="dark"]')
       || (!document.documentElement.matches('.light, [data-theme="light"]') && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
     host.setAttribute('data-theme', dark ? 'dark' : 'light');

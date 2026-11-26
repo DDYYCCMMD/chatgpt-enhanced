@@ -6,6 +6,8 @@ V0.3.1 stabilizes **Chat Navigation**: a searchable, collapsible list of user qu
 
 Navigation starts as a frameless rail of small gray ticks, with a darker tick for the current question. Hover or keyboard-focus a tick for a bounded preview; click to jump. Hover/focus the rail to reveal the list button at its top. The expanded list uses a compact history-style layout with search, single-line previews, neutral selection, icon controls, and matching light/dark themes. Navigation inherits the active page font family; icon controls use styled hints instead of browser-native titles. Short lists shrink to their content; long lists/rails scroll within the available space.
 
+The popup uses a compact neutral settings list, semibold labels, and monochrome switches. Expand **页面诊断** to access **检查当前页**. Color menus and navigation cards use subtle borders and rounded corners, with smoother corner curves where the browser supports them. The popup follows the system color scheme; page controls follow ChatGPT's theme and font. All fonts are local; no font downloads are required.
+
 ## Install and develop
 
 Requirements: Node.js 22.18+ and npm, Chrome 111+ with Developer mode available.
