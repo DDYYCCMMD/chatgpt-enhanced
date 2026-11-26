@@ -10,16 +10,47 @@ const taskId = 'task_e_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const otherTaskId = 'task_b_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const taskPath = `/codex/cloud/tasks/${taskId}`;
 const chatId = '22222222-2222-2222-2222-222222222222';
+const localId = '8f62a4ce-1111-8222-a333-444444444444';
+const localPath = `/local/${localId}`;
 const key = `codexCloudColors.v1.${taskId}`;
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 test('only recognized same-origin Codex task URLs supply a color identity', () => {
   assert.equal(codexCloudTaskIdFromUrl(taskPath), taskId);
   assert.equal(codexCloudTaskIdFromUrl(`https://chatgpt.com/codex/tasks/${taskId}/?view=diff#top`), taskId);
+  assert.equal(codexCloudTaskIdFromUrl(`https://chatgpt.com${localPath}?view=chat#top`), localId);
   for (const path of [`/c/${chatId}`, `/codex/cloud/tasks/${chatId}`, `${taskPath}/extra`,
-    `https://other.example${taskPath}`, `https://user@chatgpt.com${taskPath}`, '/codex/tasks/same-title']) {
+    `https://other.example${taskPath}`, `https://user@chatgpt.com${taskPath}`, '/codex/tasks/same-title',
+    '/local/not-a-uuid', `/local/${taskId}`, `${localPath}/extra`, `https://other.example${localPath}`]) {
     assert.equal(codexCloudTaskIdFromUrl(path), null, path);
   }
+});
+
+test('sidebar conversations linked through /local can be colored without claiming ordinary chat links', async (t) => {
+  const dom = new JSDOM(`<nav data-sidebar>
+    <ul>
+      <li id="row"><a id="cloud" href="${localPath}"><span>Cloud conversation</span></a>
+        <button id="more" aria-haspopup="menu">More</button></li>
+      <li><a id="chat" href="/c/${localId}">Ordinary chat</a></li>
+    </ul>
+  </nav><main><a id="body-link" href="${localPath}">Same link in conversation</a></main>`, { url: 'https://chatgpt.com/' });
+  const { document } = dom.window;
+  const storage = mockChromeStorage();
+  const stop = enableCodexCloudColors(document, dom.window as unknown as Window);
+  t.after(() => { stop(); dom.window.close(); });
+  const context = (selector: string) => !document.querySelector(selector)!.dispatchEvent(
+    new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+  );
+  await tick();
+
+  for (const selector of ['#more', '#chat', '#body-link']) assert.equal(context(selector), false, selector);
+  assert.equal(context('#cloud span'), true);
+  const menu = document.querySelector('[data-cge-color-menu]')!.shadowRoot!;
+  menu.querySelector<HTMLButtonElement>('[data-color="green"]')!.click();
+  await tick();
+
+  assert.equal(document.querySelector('#row')!.getAttribute('data-cge-codex-cloud-color'), 'green');
+  assert.equal(storage.values[`codexCloudColors.v1.${localId}`], 'green');
 });
 
 test('Codex colors persist by task ID and preserve native controls and ordinary chat colors', async (t) => {
