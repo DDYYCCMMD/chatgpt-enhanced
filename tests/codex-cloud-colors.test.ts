@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';
-import { codexCloudTaskIdFromUrl } from '../src/features/codex-cloud-colors/detection.ts';
+import { codexCloudTaskIdFromUrl, discoverCodexCloudTasks } from '../src/features/codex-cloud-colors/detection.ts';
 import { enableCodexCloudColors } from '../src/features/codex-cloud-colors/index.ts';
 import { enableChatColors } from '../src/features/chat-colors/index.ts';
 import { mockChromeStorage } from './helpers/chrome-storage.ts';
@@ -14,6 +14,65 @@ const localId = '8f62a4ce-1111-8222-a333-444444444444';
 const localPath = `/local/${localId}`;
 const key = `codexCloudColors.v1.${taskId}`;
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+// Sanitized structure observed in signed-in Chrome: full 36px row outside
+// three title wrappers, with the native action button alongside the title.
+function capturedRow(id = localId): string {
+  return `<div id="full-row" role="group" class="sidebar-item" data-app-action-sidebar-thread-row=""
+    data-app-action-sidebar-thread-kind="local" data-app-action-sidebar-thread-id="opaque-internal-id">
+    <div><div><div data-thread-title-trigger="true"><a href="/local/${id}" data-interactive-row-link="true">
+      <span id="title">Conversation</span></a></div></div></div>
+    <div><button id="native-more" aria-haspopup="menu"><span>More</span></button></div>
+  </div>`;
+}
+
+test('captured /local layout highlights the full native row and keeps native actions separate', async (t) => {
+  const dom = new JSDOM(`<nav data-sidebar>${capturedRow()}</nav>`, { url: 'https://chatgpt.com/' });
+  const { document } = dom.window;
+  const storage = mockChromeStorage({ [`codexCloudColors.v1.${localId}`]: 'blue' });
+  let stop = enableCodexCloudColors(document, dom.window as unknown as Window);
+  t.after(() => { stop(); dom.window.close(); });
+  await tick();
+  const row = document.querySelector('#full-row')!;
+  const attribute = 'data-cge-codex-cloud-color';
+  assert.equal(row.getAttribute(attribute), 'blue');
+  assert.equal(row.querySelector(`[${attribute}]`), null, 'title wrappers must not be painted');
+  const context = (selector: string) => !document.querySelector(selector)!.dispatchEvent(
+    new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+  );
+  assert.equal(context('#native-more span'), false);
+  assert.equal(context('#full-row'), true, 'row padding opens the color menu');
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(context('#title'), true);
+  document.querySelector('[data-cge-color-menu]')!.shadowRoot!
+    .querySelector<HTMLButtonElement>('[data-color="purple"]')!.click();
+  await tick();
+  assert.equal(row.getAttribute(attribute), 'purple');
+  assert.equal(storage.values[`codexCloudColors.v1.${localId}`], 'purple');
+
+  stop();
+  assert.equal(row.hasAttribute(attribute), false);
+  assert.equal(context('#full-row'), false);
+  document.querySelector('nav')!.innerHTML = capturedRow();
+  stop = enableCodexCloudColors(document, dom.window as unknown as Window);
+  await tick();
+  assert.equal(document.querySelector('#full-row')!.getAttribute(attribute), 'purple', 'remount restores the full-row highlight');
+  document.querySelector('nav')!.innerHTML = capturedRow(chatId);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(document.querySelector('#full-row')!.hasAttribute(attribute), false, 'recycled row does not inherit another ID color');
+});
+
+test('native Codex row detection rejects mixed identities and nested rows', () => {
+  const dom = new JSDOM(`<nav>${capturedRow()}<div data-app-action-sidebar-thread-row>
+    <a href="${localPath}">One</a><a href="/local/${chatId}">Two</a></div>
+    <div data-app-action-sidebar-thread-row><a href="${localPath}">Outer</a>
+      <div data-app-action-sidebar-thread-row><a href="/local/${chatId}">Inner</a></div></div></nav>`);
+  const rows = discoverCodexCloudTasks(dom.window.document.querySelector('nav')!);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]!.element.id, 'full-row');
+  assert.equal(rows[1]!.id, chatId);
+  dom.window.close();
+});
 
 test('only recognized same-origin Codex task URLs supply a color identity', () => {
   assert.equal(codexCloudTaskIdFromUrl(taskPath), taskId);

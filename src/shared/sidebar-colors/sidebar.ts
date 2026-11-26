@@ -45,7 +45,7 @@ export function watchSidebar(document: Document, window: Window, onRowsChanged: 
       rowsObserver.disconnect();
       for (const root of roots) {
         rowsObserver.observe(root, { subtree: true, childList: true, attributes: true,
-          attributeFilter: ['href', 'data-project-url', 'data-href', 'role', 'tabindex', 'data-testid', 'data-sidebar-project-container-id', 'data-app-action-sidebar-project-id', 'data-app-action-sidebar-project-row', 'data-sidebar-project-id', 'data-project-id', 'data-sidebar-archive-chatgpt-id'] });
+          attributeFilter: ['href', 'data-project-url', 'data-href', 'role', 'tabindex', 'data-testid', 'data-sidebar-project-container-id', 'data-app-action-sidebar-project-id', 'data-app-action-sidebar-project-row', 'data-sidebar-project-id', 'data-project-id', 'data-sidebar-archive-chatgpt-id', 'data-app-action-sidebar-thread-row'] });
       }
     }
     // The same root can move to a different layout without changing its identity.

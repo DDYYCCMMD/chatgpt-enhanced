@@ -74,7 +74,9 @@ Sidebar Colors does not handle host left-click events, so normal sidebar navigat
 
 Enable **Codex Cloud Colors** in the extension popup, then right-click a Codex conversation in the `chatgpt.com` sidebar. Choose one of six colors or **Reset to default**. The extension stores colors on this device by the stable ID in the link, so renaming the conversation keeps its color. This toggle is independent of Project Colors and Chat Colors.
 
-The adapter recognizes task links under `/codex/cloud/tasks/` and `/codex/tasks/`, plus sidebar links under `/local/<UUID>` observed for a cloud conversation. The `/local/` route identifies the sidebar conversation without specifying where it runs. **检查当前页** shows how many entries were recognized. If a cloud row shows the native menu with the toggle enabled, share its redacted link path and row attributes so its layout can be identified. Signed-in compatibility remains to be verified.
+The adapter recognizes task links under `/codex/cloud/tasks/` and `/codex/tasks/`, plus sidebar links under `/local/<UUID>` observed for a cloud conversation. The `/local/` route identifies the sidebar conversation without specifying where it runs. **检查当前页** shows how many entries were recognized. If a cloud row shows the native menu with the toggle enabled, share its redacted link path and row attributes so its layout can be identified.
+
+For the observed `/local/` layout, highlighting uses the full native sidebar thread row, matching ordinary Chat Colors in height, width, and rounded corners. It does not color only the nested title wrapper. The link supplies the stable ID; mixed-identity containers are rejected and native action buttons retain their own behavior. Signed-in Chrome verification covers the `/local/` palette and refresh persistence; the two `/codex/.../tasks/` layouts remain automated-test coverage only.
 
 ## V0.2 failure diagnosis
 
