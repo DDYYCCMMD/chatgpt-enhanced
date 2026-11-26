@@ -60,16 +60,21 @@ export function createNavigationBackup(window: Window, options: {
   const available = typeof chrome !== 'undefined' && Boolean(chrome.storage?.local);
   async function load(): Promise<void> {
     const version = ++generation; const owner = route;
+    // Do not save a partial live tail over the existing directory while its
+    // restore is pending, including flushes during route changes or disposal.
+    enabled = false;
     if (!available) return;
     try {
       const preference = await preferences();
       if (!active || version !== generation) return;
-      enabled = preference.enabled;
       epoch = preference.epoch;
-      if (!enabled || !owner) return;
+      if (!preference.enabled || !owner) return;
       const key = `${PREFIX}${preference.epoch}.${owner}`;
       const stored = await chrome.storage.local.get(key);
-      if (active && version === generation && owner === route) options.restore(validateNavigationBackup(stored[key]));
+      if (active && version === generation && owner === route) {
+        options.restore(validateNavigationBackup(stored[key]));
+        enabled = true;
+      }
     } catch { if (active && version === generation) options.error(); }
   }
   function flush(): void {

@@ -1,4 +1,4 @@
-# V0.3 architecture
+# V0.3.1 architecture
 
 ## Existing runtime and settings
 
@@ -67,7 +67,7 @@ A separate shallow child-list observer watches the sidebar ancestor chain for la
 - `projectColors.v1.<g-p-project-id>` preserves V0.2's existing keys without migration.
 - `chatColors.v1.<conversation-id>` is independent and newly introduced.
 
-Only six preset strings are accepted. Reset removes one key; unchanged selections and absent resets do not write. Per-item keys avoid whole-map overwrites when different tabs/items are updated concurrently. Same-item writes have Chrome's last-write behavior. Subscriptions attach before the initial local snapshot and merge intervening updates/removals, then ignore other areas/prefixes. No titles, account information, or message contents are stored.
+Only six preset strings are accepted. Reset removes one key; unchanged selections and absent resets do not write. Per-item keys avoid whole-map overwrites when different tabs/items are updated concurrently. Same-item writes have Chrome's last-write behavior. Subscriptions attach before the initial local snapshot and merge intervening updates/removals, then ignore other areas/prefixes. These color stores save no titles, account information or message contents. The separate opt-in navigation preview backup is described below.
 
 ## Build and verification
 
@@ -98,7 +98,7 @@ V0.3 starts from local `main` commit `34a5b95` (the latest V0.2.1), with a clean
 - `scroll.ts`: native scroll-container selection and explicit instant jumps with header clearance; no destination animation.
 - `active.ts`: IntersectionObserver-based reading selection; a short visual hold during a click jump never initiates another scroll.
 - `index.ts`: route/root lifecycle, observer ownership, reconciliation, layout/theme updates and complete cleanup.
-- `question-index.ts`: bounded per-conversation page-memory summaries, ordering by observed scroll position, and retention without detached message DOM references.
+- `question-index.ts`: bounded per-conversation page-memory summaries, ordering by merged overlapping DOM windows, and retention without detached message DOM references.
 - `history.ts`: user-initiated native-scroll scanning, cancellation/bounds, reading-position restoration and stable-key verification for cached-target relocation.
 
 ### Discovery and ownership
@@ -107,7 +107,7 @@ The adapter recognizes `/c/<id>` routes, including nested Project/custom-GPT pat
 
 Only explicit user subtrees (`[data-message-author-role="user"]` or `[data-user-message-bubble]`) are read for previews. Explicit author roles take precedence over bubble markers; mixed nested markers are deduplicated and assistant-owned markers are excluded. Assistant bodies, draft composer values, other conversation roots, and message HTML are not read. Source-specific message/turn IDs take precedence; `data-turn-key` is supported as an in-page identity stamp and jump boundary for virtualized turns. Duplicate IDs collapse responsive copies, while duplicate text with distinct IDs/references stays distinct. Missing IDs use a per-route WeakMap key, never text identity. Only mounted visible user nodes are read; their bounded summaries may remain in the page-memory index after unmounting.
 
-The user's 2026-11-25 structural diagnostic showed a single main with zero legacy author nodes, but a selected message ancestor carrying `data-user-message-bubble`/`data-user-message-has-prompt` inside `data-turn-key` and `data-virtualized-turn` wrappers. This established an unsupported selector as a concrete failure, rather than a narrow-window issue. `conversation-user-bubbles.html` models those attribute names with synthetic keys/text and simulated layout classes; class values and real browser geometry were not captured. Tests cover detection, mixed markers, edits, insertion/removal, node recycling and native scrolling. Actual display and placement still require user verification after reloading the extension and refreshing the page.
+The user's 2026-11-25 structural diagnostic showed a single main with zero legacy author nodes, but a selected message ancestor carrying `data-user-message-bubble`/`data-user-message-has-prompt` inside `data-turn-key` and `data-virtualized-turn` wrappers. This established an unsupported selector as a concrete failure, rather than a narrow-window issue. `conversation-user-bubbles.html` models those attribute names with synthetic keys/text and simulated layout classes; class values and real browser geometry were not captured. Tests cover detection, mixed markers, edits, insertion/removal, node recycling and native scrolling. Subsequent signed-in verification of one conversation is recorded below; other layouts still require user verification after reloading the extension and refreshing the page.
 
 On route change, the old list/search and strong message references are cleared immediately when the change is observed. Weak metadata stamps from the previous route prevent unchanged stale nodes from being read as the new conversation, including when the root's metadata changes before its URL. New nodes or changed stable IDs can be indexed. Without ownership evidence, reused unidentifiable nodes are omitted. Clicks recheck URL, scope, visibility, stable identity and connectivity before jumping.
 
@@ -145,7 +145,7 @@ During seeks, controls remain usable. Requests capture the clicked snapshot, can
 
 At a local native top, a quiet height/key signature does not prove earlier history has loaded. If all mounted known questions come after the requested entry, a seek keeps requesting older history within its overall budget instead of prematurely traversing down. Scans retain their separate top-settling bound. The readiness observer and any pending frame are cleaned on completion and synchronously on disposal.
 
-Question previews remain in page memory by default. An independent, off-by-default local-backup setting permits bounded question previews, identifiers and position hints in chrome.storage.local; the user explicitly opted to add this capability. Assistant bodies, full extracted search text, queries and collapse state are not backed up. No conversation text is emitted in extension messages, logged or sent over a network. Extraction is bounded to 2,048 code units; previews/tooltips are bounded further. Version changes to 0.3.0 across package/lockfile/manifest; no dependency or permission is added.
+Question previews remain in page memory by default. An independent, off-by-default local-backup setting permits bounded question previews, identifiers and position hints in chrome.storage.local; the user explicitly opted to add this capability. Assistant bodies, full extracted search text, queries and collapse state are not backed up. No conversation text is emitted in extension messages, logged or sent over a network. Extraction is bounded to 2,048 code units; previews/tooltips are bounded further. Package/lockfile/manifest are aligned at 0.3.1; no dependency or permission is added.
 
 Disabling disconnects content/shell/layout/theme/resize/intersection observers, removes route/resize/focus/theme/transition listeners, clears timers/animation frames and the preview-dismiss timer, empties the panel/search, drops strong question references and resets WeakMaps. Sidebar Colors retains its independent subscriptions and UI. Existing global content pagehide/pageshow handling continues to own feature teardown/resume.
 
@@ -155,7 +155,7 @@ Navigation reads only the active main element's computed font family for typogra
 
 ### Local backup and virtualization corrections
 
-`storage/navigation-backup.ts` owns the separate opt-in setting, validation, per-conversation records, restore/save scheduling and clearing. Records are capped at 300 entries across eight conversation slots. Only message/turn identifiers are eligible; DOM-only and positional test-ID keys are rejected. Live entries take precedence when merging restored records. Restore reads are generation-checked to prevent a late response being applied to another route. Queued saves capture their owner route and backup epoch. Clear disables backup and rotates the epoch before deletion; old queued/in-flight writes cannot become valid new backups or restore cleared data. Existing feature booleans and color records are separate.
+`storage/navigation-backup.ts` owns the separate opt-in setting, validation, per-conversation records, restore/save scheduling and clearing. Records are capped at 300 entries per conversation across eight conversation slots. Only message/turn identifiers are eligible; DOM-only and positional test-ID keys are rejected. Live entries take precedence when merging restored records. Restore reads are generation-checked to prevent a late response being applied to another route. Writes remain disabled until the current generation has restored and merged its directory, preventing a slow restore from being overwritten by a partial live tail. Queued saves capture their owner route and backup epoch. Clear disables backup and rotates the epoch before deletion; old queued/in-flight writes cannot become valid new backups or restore cleared data. Existing feature booleans and color records are separate.
 
 Transient zero-width virtualized columns no longer immediately hide the navigation: layout samples prefer nearby mounted questions and remember only the last valid column geometry. The geometry can be reused at the same viewport width while sidebar/composer/header bounds are still remeasured. No detached message node is retained as a layout anchor. A viewport width change requires a new valid measurement. Directory data survives same-route root replacement; diagnostics count both freshly mounted and retained summaries.
 
@@ -164,3 +164,7 @@ Transient zero-width virtualized columns no longer immediately hide the navigati
 The reusable [debugging workflow](debugging-workflow.md) documents failure classification, bounded observations and the live acceptance sequence. Keep it alongside the dated [verification evidence](navigation-live-verification.md) when changing the navigation adapters.
 
 The former seek implementation performed one saved-pixel jump and ten 50ms exact-key checks, then explicitly restored the original position on any miss. Its rigid fixture covered neither coordinate drift nor a turn-key becoming a message ID after remount. Those omissions can produce a return even with the correct message near the new viewport. The revised matcher retains explicit identity aliases, permits weak-to-strong promotion only with a matching preview, rejects conflicting strong message IDs and requires a unique candidate. The index and local backups retain the aliases and avoid duplicate weak/strong records. Coordinates and keyed placeholders are hints; only a current mounted user message passing snapshot/target checks marks success. Failure diagnostics expose counts only, and remain accessible from the visible history control. These initial modeled corrections did not establish the live cause. Later signed-in testing reproduced native bottom-following and coordinate rebasing; the live-derived changes and verification above replace the earlier saved-pixel/bisection approach.
+
+## V0.3.1 release preparation
+
+See the [release notes](release-0.3.1.md) for the delayed-restore regression and the [acceptance matrix](navigation-acceptance.md) for pending live checks. The dated live/performance records retain their original scope and test totals; they are not rewritten as V0.3.1 evidence.
